@@ -1,0 +1,9 @@
+syntax = "proto3";
+package composable.xcvm.v1beta1;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "x/xcvm/types";
+
+// Query provides defines the gRPC querier service.
+service Query {}

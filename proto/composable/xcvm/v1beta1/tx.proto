@@ -1,0 +1,10 @@
+syntax = "proto3";
+package composable.xcvm.v1beta1;
+
+import "cosmos/msg/v1/msg.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "x/xcvm/types";
+
+// Msg defines the x/xcvm Msg service.
+service Msg { option (cosmos.msg.v1.service) = true; }
