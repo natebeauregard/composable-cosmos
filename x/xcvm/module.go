@@ -1,4 +1,4 @@
-package tx_boundary
+package xcvm
 
 import (
 	"encoding/json"
