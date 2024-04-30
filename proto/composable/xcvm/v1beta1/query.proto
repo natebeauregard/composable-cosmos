@@ -5,5 +5,5 @@ import "gogoproto/gogo.proto";
 
 option go_package = "x/xcvm/types";
 
-// Query provides defines the gRPC querier service.
+// Query provides the gRPC querier service.
 service Query {}
