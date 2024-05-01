@@ -1,0 +1,10 @@
+syntax = "proto3";
+package composable.xcvm.v1beta1;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "x/xcvm/types";
+
+// GenesisState defines the module various parameters when first
+// initialized
+message GenesisState {}
