@@ -1,0 +1,50 @@
+syntax = "proto3";
+package composable.xcvm.v1beta1;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "x/xcvm/types";
+
+// TODO: add "CVM" prefix to all of these messages
+message Instruction {
+  oneof instruction {
+    SpawnInstruction spawn = 1;
+    // TODO: add other instructions
+  }
+}
+
+message Program {
+  repeated Instruction instructions = 1;
+}
+
+// message AbsoluteBalance {
+//   uint64 amount = 1;
+// }
+
+// message RatioBalance {
+//   uint64 numerator = 1;
+//   uint64 denominator = 2;
+// }
+
+// message SourceBalance {}
+
+// message Balance {
+  // oneof balance {
+  //   AbsoluteBalance absolute = 1;
+  //   // RatioBalance ratio = 2;
+  // }
+// }
+
+message Asset {
+  uint64 asset_id = 1;
+  // TODO: use Balance message instead of uint64
+  uint64 balance = 2;
+}
+
+message SpawnInstruction {
+  uint32 origin_network = 1;
+  uint32 salt = 2;
+  Program program = 3;
+  repeated Asset assets = 4;
+}

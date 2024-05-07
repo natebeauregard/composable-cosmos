@@ -1,10 +1,25 @@
 syntax = "proto3";
 package composable.xcvm.v1beta1;
 
+import "composable/xcvm/v1beta1/cvm.proto";
 import "cosmos/msg/v1/msg.proto";
 import "gogoproto/gogo.proto";
+import "cosmos_proto/cosmos.proto";
 
 option go_package = "x/xcvm/types";
 
 // Msg defines the x/xcvm Msg service.
-service Msg { option (cosmos.msg.v1.service) = true; }
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+
+  rpc ExecuteCvmProgram(MsgExecuteCvmProgram)
+      returns (MsgExecuteCvmProgramResponse);
+}
+
+message MsgExecuteCvmProgram {
+    option (cosmos.msg.v1.signer) = "from_address";
+    string from_address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+    Program program = 2 [ (gogoproto.nullable) = false ];
+}
+
+message MsgExecuteCvmProgramResponse {}

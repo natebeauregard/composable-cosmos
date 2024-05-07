@@ -9,25 +9,31 @@ import (
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	porttypes "github.com/cosmos/ibc-go/v7/modules/core/05-port/types"
+
 	"github.com/cometbft/cometbft/libs/log"
 )
 
 // Keeper struct
 type Keeper struct {
-	cdc      codec.Codec
-	storeKey storetypes.StoreKey
+	cdc            codec.Codec
+	storeKey       storetypes.StoreKey
+	ICS4Wrapper    porttypes.ICS4Wrapper
+	transferKeeper types.TransferKeeper
+	bankKeeper     types.BankKeeper
 
 	// the address capable of executing a privileged message. Typically, this
 	// should be the x/gov module account.
 	authority string
 }
 
-// NewKeeper returns keeper
-func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, authority string) Keeper {
+// NewKeeper returns keepers
+func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, ics4wrapper porttypes.ICS4Wrapper, authority string) Keeper {
 	return Keeper{
-		cdc:       cdc,
-		storeKey:  storeKey,
-		authority: authority,
+		cdc:         cdc,
+		storeKey:    storeKey,
+		ICS4Wrapper: ics4wrapper,
+		authority:   authority,
 	}
 }
 
