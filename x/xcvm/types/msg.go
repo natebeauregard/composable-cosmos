@@ -6,6 +6,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+	"github.com/ethereum/go-ethereum/common"
 
 	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 )
@@ -19,7 +20,7 @@ var _ sdk.Msg = &MsgSendTransferIntent{}
 
 func NewMsgSendTransferIntent(
 	fromAddress string,
-	destinationAddress string,
+	destinationAddress common.Address,
 	clientId string,
 	amount math.Int,
 ) *MsgSendTransferIntent {
@@ -48,7 +49,7 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 	}
 
 	// validate destination address
-	if _, err := ValidateDestinationAddress(msg.DestinationAddress); err != nil {
+	if err := ValidateDestinationAddress(msg.DestinationAddress); err != nil {
 		return errorsmod.Wrap(err, "invalid destination address")
 	}
 
@@ -65,9 +66,9 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 	return nil
 }
 
-func ValidateDestinationAddress(address string) (string, error) {
+func ValidateDestinationAddress(address common.Address) error {
 	// TODO: validate eth address
-	return address, nil
+	return nil
 }
 
 var _ sdk.Msg = &MsgVerifyTransferIntentProof{}
