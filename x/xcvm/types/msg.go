@@ -90,7 +90,5 @@ func (msg *MsgVerifyTransferIntentProof) ValidateBasic() error {
 		return errorsmod.Wrap(err, "invalid signer address")
 	}
 
-	// TODO: verify intent ID
-
 	return nil
 }
