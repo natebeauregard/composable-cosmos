@@ -5,7 +5,6 @@ import (
 	"cosmossdk.io/math"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/ethereum/go-ethereum/common"
 
 	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
@@ -20,9 +19,9 @@ var _ sdk.Msg = &MsgSendTransferIntent{}
 
 func NewMsgSendTransferIntent(
 	fromAddress string,
-	destinationAddress common.Address,
+	destinationAddress string,
 	clientId string,
-	amount math.Int,
+	amount math.Uint,
 ) *MsgSendTransferIntent {
 	return &MsgSendTransferIntent{
 		FromAddress:        fromAddress,
@@ -49,8 +48,8 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 	}
 
 	// validate destination address
-	if err := ValidateDestinationAddress(msg.DestinationAddress); err != nil {
-		return errorsmod.Wrap(err, "invalid destination address")
+	if !common.IsHexAddress(msg.DestinationAddress) {
+		return ErrInvalidDestinationAddress
 	}
 
 	// validate clientId
@@ -58,16 +57,6 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 		return err
 	}
 
-	// validate amount
-	if msg.Amount.LTE(math.ZeroInt()) {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "amount must be greater than 0")
-	}
-
-	return nil
-}
-
-func ValidateDestinationAddress(address common.Address) error {
-	// TODO: validate eth address
 	return nil
 }
 
@@ -100,6 +89,8 @@ func (msg *MsgVerifyTransferIntentProof) ValidateBasic() error {
 	if _, err := sdk.AccAddressFromBech32(msg.Signer); err != nil {
 		return errorsmod.Wrap(err, "invalid signer address")
 	}
+
+	// TODO: verify intent ID
 
 	return nil
 }

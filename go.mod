@@ -15,6 +15,7 @@ require (
 	github.com/cosmos/ibc-apps/modules/async-icq/v7 v7.1.1
 	github.com/cosmos/ibc-apps/modules/ibc-hooks/v7 v7.0.0-20231212181537-128259979a8d
 	github.com/cosmos/ibc-go/v7 v7.3.1
+	github.com/ethereum/go-ethereum v1.11.3
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
 	github.com/gorilla/mux v1.8.0

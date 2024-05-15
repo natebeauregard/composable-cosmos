@@ -9,6 +9,7 @@ import (
 // InitGenesis initializes the capability module's state from a provided genesis
 // state.
 func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
+	k.SetNextIntentId(ctx, genState.IntentId)
 }
 
 // ExportGenesis returns the capability module's exported genesis.

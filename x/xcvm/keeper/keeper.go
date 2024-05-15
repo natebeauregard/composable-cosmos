@@ -14,8 +14,9 @@ import (
 
 // Keeper struct
 type Keeper struct {
-	cdc      codec.Codec
-	storeKey storetypes.StoreKey
+	cdc          codec.Codec
+	storeKey     storetypes.StoreKey
+	clientKeeper types.ClientKeeper
 
 	// the address capable of executing a privileged message. Typically, this
 	// should be the x/gov module account.

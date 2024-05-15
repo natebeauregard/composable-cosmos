@@ -26,16 +26,13 @@ message MsgSendTransferIntent {
     // The origin composable address of the transfer intent.
     string from_address = 1;
     // The destination EVM chain address for the transfer intent.
-    string destination_address = 2 [
-        (gogoproto.customtype) = "github.com/ethereum/go-ethereum/common.Address",
-        (gogoproto.nullable) = false
-    ];
+    string destination_address = 2;
     // The IBC light client ID for the EVM chain to execute the transfer intent on.
     string clientId = 3;
     // The amount of tokens to transfer.
     // TODO: The coin denom (or alternatively cosmos-sdk/types.Coin) will be added to support non-native tokens in a future commit
     string amount = 4 [
-        (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Int",
+        (gogoproto.customtype) = "cosmossdk.io/math.Uint",
         (gogoproto.nullable) = false
     ];
 }
