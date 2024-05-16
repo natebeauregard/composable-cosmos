@@ -5,20 +5,18 @@ import (
 	"strconv"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	commitmenttypes "github.com/cosmos/ibc-go/v7/modules/core/23-commitment/types"
 	ibccore "github.com/cosmos/ibc-go/v7/modules/core/exported"
 	"github.com/notional-labs/composable/v6/x/xcvm/types"
 )
 
 func (k Keeper) SendValidatedTransferIntent(ctx sdk.Context, msg *types.MsgSendTransferIntent) error {
 	clientId := msg.ClientId
-	clientState, found := k.clientKeeper.GetClientState(ctx, clientId)
-	if !found {
-		return types.ErrClientNotFound
-	}
 
-	clientStatus := k.clientKeeper.GetClientStatus(ctx, clientState, clientId)
-	if clientStatus != ibccore.Active {
-		return types.ErrClientNotActive
+	_, err := k.ValidateClientId(ctx, clientId)
+	if err != nil {
+		return err
 	}
 
 	intentId := k.GetNextIntentId(ctx)
@@ -29,6 +27,9 @@ func (k Keeper) SendValidatedTransferIntent(ctx sdk.Context, msg *types.MsgSendT
 		Amount:             msg.Amount,
 	}
 	k.AddTransferIntent(ctx, transferIntent, intentId)
+
+	// TODO: post bounty for solver?
+	// TODO: should a collateral amount be set here as well for the solver to deposit before executing the intent?
 
 	ctx.EventManager().EmitEvent(sdk.NewEvent(
 		types.EventAddTransferIntent,
@@ -55,10 +56,8 @@ func (k Keeper) GetNextIntentId(ctx sdk.Context) uint64 {
 
 func (k Keeper) SetNextIntentId(ctx sdk.Context, intentId uint64) {
 	store := ctx.KVStore(k.storeKey)
-
 	intentIdBz := make([]byte, 8)
 	binary.BigEndian.PutUint64(intentIdBz, intentId)
-
 	store.Set(types.TransferIntentIdKey, intentIdBz)
 }
 
@@ -66,16 +65,70 @@ func (k Keeper) SetNextIntentId(ctx sdk.Context, intentId uint64) {
 func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.TransferIntent, intentId uint64) {
 	store := ctx.KVStore(k.storeKey)
 
-	intentIdBz := make([]byte, 8)
-	binary.BigEndian.PutUint64(intentIdBz, intentId)
-
-	transferIntentKey := types.GetPendingTransferIntentKeyById(intentIdBz)
+	transferIntentKey := types.GetPendingTransferIntentKeyById(intentId)
 	transferIntentValue := k.cdc.MustMarshal(&transferIntent)
 
 	store.Set(transferIntentKey, transferIntentValue)
 }
 
 func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferIntentProof) error {
-	// TODO implement verifying intent proofs
+	store := ctx.KVStore(k.storeKey)
+
+	intentId := msg.IntentId
+	transferIntentKey := types.GetPendingTransferIntentKeyById(intentId)
+	if !store.Has(transferIntentKey) {
+		return types.ErrInvalidIntentId
+	}
+
+	transferIntentBz := store.Get(transferIntentKey)
+	var transferIntent types.TransferIntent
+	err := k.cdc.Unmarshal(transferIntentBz, &transferIntent)
+	if err != nil {
+		return err
+	}
+
+	clientId := transferIntent.ClientId
+	clientState, err := k.ValidateClientId(ctx, clientId)
+	if err != nil {
+		return err
+	}
+
+	height := clienttypes.NewHeight(msg.ProofHeight.RevisionNumber, msg.ProofHeight.RevisionHeight)
+	merklePath := commitmenttypes.NewMerklePath(msg.MerklePath.KeyPath...)
+	clientStore := k.clientKeeper.ClientStore(ctx, clientId)
+	err = clientState.VerifyMembership(
+		ctx,
+		clientStore,
+		k.cdc,
+		height,
+		msg.TimeDelay,
+		msg.BlockDelay,
+		msg.Proof,
+		merklePath,
+		msg.Value,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Purge resolved transfer intent after proof verification?
+	// store.Delete(transferIntentKey)
+
+	// TODO: unlock bounty for solver?
+
 	return nil
+}
+
+func (k Keeper) ValidateClientId(ctx sdk.Context, clientId string) (ibccore.ClientState, error) {
+	clientState, found := k.clientKeeper.GetClientState(ctx, clientId)
+	if !found {
+		return nil, types.ErrClientNotFound
+	}
+
+	clientStatus := k.clientKeeper.GetClientStatus(ctx, clientState, clientId)
+	if clientStatus != ibccore.Active {
+		return nil, types.ErrClientNotActive
+	}
+
+	return clientState, nil
 }

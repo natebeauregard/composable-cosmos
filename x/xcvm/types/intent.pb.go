@@ -25,7 +25,6 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// Boundary defines the number of tx limit and block per tx generation time
 type TransferIntent struct {
 	SourceAddress      string                 `protobuf:"bytes,1,opt,name=source_address,json=sourceAddress,proto3" json:"source_address,omitempty"`
 	DestinationAddress string                 `protobuf:"bytes,2,opt,name=destination_address,json=destinationAddress,proto3" json:"destination_address,omitempty"`
@@ -87,8 +86,108 @@ func (m *TransferIntent) GetClientId() string {
 	return ""
 }
 
+type ProofHeight struct {
+	// the revision that the client is currently on
+	RevisionNumber uint64 `protobuf:"varint,1,opt,name=revision_number,json=revisionNumber,proto3" json:"revision_number,omitempty"`
+	// the height within the given revision
+	RevisionHeight uint64 `protobuf:"varint,2,opt,name=revision_height,json=revisionHeight,proto3" json:"revision_height,omitempty"`
+}
+
+func (m *ProofHeight) Reset()         { *m = ProofHeight{} }
+func (m *ProofHeight) String() string { return proto.CompactTextString(m) }
+func (*ProofHeight) ProtoMessage()    {}
+func (*ProofHeight) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5047e26d000a53a3, []int{1}
+}
+func (m *ProofHeight) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ProofHeight) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ProofHeight.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ProofHeight) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ProofHeight.Merge(m, src)
+}
+func (m *ProofHeight) XXX_Size() int {
+	return m.Size()
+}
+func (m *ProofHeight) XXX_DiscardUnknown() {
+	xxx_messageInfo_ProofHeight.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ProofHeight proto.InternalMessageInfo
+
+func (m *ProofHeight) GetRevisionNumber() uint64 {
+	if m != nil {
+		return m.RevisionNumber
+	}
+	return 0
+}
+
+func (m *ProofHeight) GetRevisionHeight() uint64 {
+	if m != nil {
+		return m.RevisionHeight
+	}
+	return 0
+}
+
+type MerklePath struct {
+	KeyPath []string `protobuf:"bytes,1,rep,name=key_path,json=keyPath,proto3" json:"key_path,omitempty"`
+}
+
+func (m *MerklePath) Reset()         { *m = MerklePath{} }
+func (m *MerklePath) String() string { return proto.CompactTextString(m) }
+func (*MerklePath) ProtoMessage()    {}
+func (*MerklePath) Descriptor() ([]byte, []int) {
+	return fileDescriptor_5047e26d000a53a3, []int{2}
+}
+func (m *MerklePath) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MerklePath) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MerklePath.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MerklePath) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MerklePath.Merge(m, src)
+}
+func (m *MerklePath) XXX_Size() int {
+	return m.Size()
+}
+func (m *MerklePath) XXX_DiscardUnknown() {
+	xxx_messageInfo_MerklePath.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MerklePath proto.InternalMessageInfo
+
+func (m *MerklePath) GetKeyPath() []string {
+	if m != nil {
+		return m.KeyPath
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*TransferIntent)(nil), "composable.xcvm.v1beta1.TransferIntent")
+	proto.RegisterType((*ProofHeight)(nil), "composable.xcvm.v1beta1.ProofHeight")
+	proto.RegisterType((*MerklePath)(nil), "composable.xcvm.v1beta1.MerklePath")
 }
 
 func init() {
@@ -96,25 +195,30 @@ func init() {
 }
 
 var fileDescriptor_5047e26d000a53a3 = []byte{
-	// 277 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x4c, 0x90, 0x4f, 0x4b, 0xc3, 0x30,
-	0x18, 0xc6, 0x1b, 0x95, 0xe1, 0x82, 0xee, 0x50, 0x45, 0xe7, 0x84, 0x4c, 0x44, 0xc5, 0x53, 0xc3,
-	0x10, 0xbc, 0xbb, 0xdb, 0xae, 0x43, 0x2f, 0x5e, 0x4a, 0xda, 0xc4, 0x19, 0x5c, 0xf3, 0x96, 0xbe,
-	0xef, 0xc6, 0xfc, 0x16, 0x7e, 0x21, 0xef, 0x3b, 0xee, 0x28, 0x1e, 0x86, 0xb4, 0x5f, 0x44, 0xda,
-	0xcc, 0x3f, 0xb7, 0xe4, 0xf7, 0xfc, 0x1e, 0xc2, 0x13, 0x7e, 0x91, 0x42, 0x96, 0x03, 0xaa, 0x64,
-	0x6a, 0xe4, 0x22, 0x9d, 0x67, 0x72, 0x3e, 0x48, 0x0c, 0xa9, 0x81, 0xb4, 0x8e, 0x8c, 0xa3, 0x28,
-	0x2f, 0x80, 0x20, 0x3c, 0xfe, 0xb3, 0xa2, 0xda, 0x8a, 0x36, 0x56, 0xef, 0x24, 0x05, 0xcc, 0x00,
-	0xe3, 0x46, 0x93, 0xfe, 0xe2, 0x3b, 0xbd, 0xc3, 0x09, 0x4c, 0xc0, 0xf3, 0xfa, 0xe4, 0xe9, 0xf9,
-	0x3b, 0xe3, 0x9d, 0xfb, 0x42, 0x39, 0x7c, 0x32, 0xc5, 0xa8, 0x79, 0x22, 0xbc, 0xe4, 0x1d, 0x84,
-	0x59, 0x91, 0x9a, 0x58, 0x69, 0x5d, 0x18, 0xc4, 0x2e, 0x3b, 0x63, 0xd7, 0xed, 0xf1, 0xbe, 0xa7,
-	0x77, 0x1e, 0x86, 0x92, 0x1f, 0x68, 0x83, 0x64, 0x9d, 0x22, 0x0b, 0xee, 0xd7, 0xdd, 0x6a, 0xdc,
-	0xf0, 0x5f, 0xf4, 0x53, 0x38, 0xe5, 0xed, 0x74, 0x6a, 0x8d, 0xa3, 0xd8, 0xea, 0xee, 0x76, 0xa3,
-	0xed, 0x7a, 0x30, 0xd2, 0xe1, 0x2d, 0x6f, 0xa9, 0x0c, 0x66, 0x8e, 0xba, 0x3b, 0x75, 0x32, 0x14,
-	0xcb, 0x75, 0x3f, 0xf8, 0x5c, 0xf7, 0x8f, 0xfc, 0x06, 0xd4, 0x2f, 0x91, 0x05, 0x99, 0x29, 0x7a,
-	0x8e, 0x1e, 0xac, 0xa3, 0xf1, 0xc6, 0x1e, 0x5e, 0x2d, 0x4b, 0xc1, 0x56, 0xa5, 0x60, 0x5f, 0xa5,
-	0x60, 0x6f, 0x95, 0x08, 0x56, 0x95, 0x08, 0x3e, 0x2a, 0x11, 0x3c, 0xee, 0x2d, 0xfc, 0x07, 0xd2,
-	0x6b, 0x6e, 0x30, 0x69, 0x35, 0x73, 0x6f, 0xbe, 0x03, 0x00, 0x00, 0xff, 0xff, 0xde, 0x8a, 0x2a,
-	0x7d, 0x60, 0x01, 0x00, 0x00,
+	// 358 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x54, 0x91, 0x31, 0x6f, 0xe2, 0x30,
+	0x18, 0x86, 0x93, 0x03, 0x71, 0xe0, 0xbb, 0xe3, 0xa4, 0xdc, 0xa9, 0x0d, 0x54, 0x0a, 0x08, 0xb5,
+	0x85, 0x29, 0x11, 0xaa, 0xd4, 0xbd, 0x4c, 0x65, 0x68, 0x85, 0xa2, 0x76, 0xe9, 0x12, 0x39, 0xc9,
+	0x07, 0xb1, 0x42, 0xec, 0xc8, 0x36, 0x08, 0xfe, 0x45, 0xff, 0x50, 0x77, 0x46, 0xc6, 0xaa, 0x03,
+	0xaa, 0xe0, 0x8f, 0x54, 0xb1, 0xa1, 0xa5, 0x5b, 0xf2, 0x7c, 0xcf, 0x6b, 0xbf, 0xb6, 0xd1, 0x79,
+	0xc4, 0xb2, 0x9c, 0x09, 0x1c, 0x4e, 0xc1, 0x5b, 0x44, 0xf3, 0xcc, 0x9b, 0xf7, 0x43, 0x90, 0xb8,
+	0xef, 0x11, 0x2a, 0x81, 0x4a, 0x37, 0xe7, 0x4c, 0x32, 0xeb, 0xf4, 0xcb, 0x72, 0x0b, 0xcb, 0xdd,
+	0x5b, 0xcd, 0x46, 0xc4, 0x44, 0xc6, 0x44, 0xa0, 0x34, 0x4f, 0xff, 0xe8, 0x4c, 0xf3, 0xff, 0x84,
+	0x4d, 0x98, 0xe6, 0xc5, 0x97, 0xa6, 0x9d, 0x17, 0x13, 0xd5, 0x1f, 0x38, 0xa6, 0x62, 0x0c, 0x7c,
+	0xa8, 0xb6, 0xb0, 0x2e, 0x50, 0x5d, 0xb0, 0x19, 0x8f, 0x20, 0xc0, 0x71, 0xcc, 0x41, 0x08, 0xdb,
+	0x6c, 0x9b, 0xbd, 0x9a, 0xff, 0x47, 0xd3, 0x1b, 0x0d, 0x2d, 0x0f, 0xfd, 0x8b, 0x41, 0x48, 0x42,
+	0xb1, 0x24, 0x8c, 0x7e, 0xba, 0x3f, 0x94, 0x6b, 0x1d, 0x8d, 0x0e, 0x81, 0x33, 0x54, 0x8b, 0xa6,
+	0x04, 0xa8, 0x0c, 0x48, 0x6c, 0x97, 0x94, 0x56, 0xd5, 0x60, 0x18, 0x5b, 0xd7, 0xa8, 0x82, 0x33,
+	0x36, 0xa3, 0xd2, 0x2e, 0x17, 0x93, 0x81, 0xb3, 0xda, 0xb4, 0x8c, 0xb7, 0x4d, 0xeb, 0x44, 0x9f,
+	0x41, 0xc4, 0xa9, 0x4b, 0x98, 0x97, 0x61, 0x99, 0xb8, 0x8f, 0x84, 0x4a, 0x7f, 0x6f, 0x77, 0x02,
+	0xf4, 0x6b, 0xc4, 0x19, 0x1b, 0xdf, 0x02, 0x99, 0x24, 0xd2, 0xea, 0xa2, 0xbf, 0x1c, 0xe6, 0x44,
+	0x14, 0x8d, 0xe8, 0x2c, 0x0b, 0x81, 0xab, 0xf2, 0x65, 0xbf, 0x7e, 0xc0, 0xf7, 0x8a, 0x7e, 0x13,
+	0x13, 0x95, 0x55, 0xcd, 0x8f, 0x44, 0xbd, 0x62, 0xa7, 0x8b, 0xd0, 0x1d, 0xf0, 0x74, 0x0a, 0x23,
+	0x2c, 0x13, 0xab, 0x81, 0xaa, 0x29, 0x2c, 0x83, 0x1c, 0xcb, 0xc4, 0x36, 0xdb, 0xa5, 0x5e, 0xcd,
+	0xff, 0x99, 0xc2, 0xb2, 0x18, 0x0d, 0x2e, 0x57, 0x5b, 0xc7, 0x5c, 0x6f, 0x1d, 0xf3, 0x7d, 0xeb,
+	0x98, 0xcf, 0x3b, 0xc7, 0x58, 0xef, 0x1c, 0xe3, 0x75, 0xe7, 0x18, 0x4f, 0xbf, 0x17, 0xfa, 0x29,
+	0xe5, 0x32, 0x07, 0x11, 0x56, 0xd4, 0xc5, 0x5f, 0x7d, 0x04, 0x00, 0x00, 0xff, 0xff, 0x49, 0x53,
+	0x1e, 0xbc, 0xea, 0x01, 0x00, 0x00,
 }
 
 func (m *TransferIntent) Marshal() (dAtA []byte, err error) {
@@ -171,6 +275,71 @@ func (m *TransferIntent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *ProofHeight) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ProofHeight) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ProofHeight) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.RevisionHeight != 0 {
+		i = encodeVarintIntent(dAtA, i, uint64(m.RevisionHeight))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.RevisionNumber != 0 {
+		i = encodeVarintIntent(dAtA, i, uint64(m.RevisionNumber))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *MerklePath) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MerklePath) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MerklePath) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.KeyPath) > 0 {
+		for iNdEx := len(m.KeyPath) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.KeyPath[iNdEx])
+			copy(dAtA[i:], m.KeyPath[iNdEx])
+			i = encodeVarintIntent(dAtA, i, uint64(len(m.KeyPath[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintIntent(dAtA []byte, offset int, v uint64) int {
 	offset -= sovIntent(v)
 	base := offset
@@ -202,6 +371,36 @@ func (m *TransferIntent) Size() (n int) {
 	}
 	l = m.Amount.Size()
 	n += 1 + l + sovIntent(uint64(l))
+	return n
+}
+
+func (m *ProofHeight) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.RevisionNumber != 0 {
+		n += 1 + sovIntent(uint64(m.RevisionNumber))
+	}
+	if m.RevisionHeight != 0 {
+		n += 1 + sovIntent(uint64(m.RevisionHeight))
+	}
+	return n
+}
+
+func (m *MerklePath) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.KeyPath) > 0 {
+		for _, s := range m.KeyPath {
+			l = len(s)
+			n += 1 + l + sovIntent(uint64(l))
+		}
+	}
 	return n
 }
 
@@ -369,6 +568,176 @@ func (m *TransferIntent) Unmarshal(dAtA []byte) error {
 			if err := m.Amount.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipIntent(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthIntent
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ProofHeight) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowIntent
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ProofHeight: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ProofHeight: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RevisionNumber", wireType)
+			}
+			m.RevisionNumber = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowIntent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RevisionNumber |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RevisionHeight", wireType)
+			}
+			m.RevisionHeight = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowIntent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RevisionHeight |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipIntent(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthIntent
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MerklePath) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowIntent
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MerklePath: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MerklePath: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KeyPath", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowIntent
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthIntent
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthIntent
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KeyPath = append(m.KeyPath, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

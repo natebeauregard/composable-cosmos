@@ -1,5 +1,7 @@
 package types
 
+import "encoding/binary"
+
 const (
 	// ModuleName defines the module name
 	ModuleName = "xcvm"
@@ -14,6 +16,8 @@ var (
 	PendingTransferIntentKeyPrefix = []byte{0x01}
 )
 
-func GetPendingTransferIntentKeyById(intentIdBz []byte) []byte {
+func GetPendingTransferIntentKeyById(intentId uint64) []byte {
+	intentIdBz := make([]byte, 8)
+	binary.BigEndian.PutUint64(intentIdBz, intentId)
 	return append(PendingTransferIntentKeyPrefix, intentIdBz...)
 }

@@ -2,6 +2,7 @@ syntax = "proto3";
 package composable.xcvm.v1beta1;
 
 import "amino/amino.proto";
+import "composable/xcvm/v1beta1/intent.proto";
 import "cosmos/msg/v1/msg.proto";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
@@ -47,10 +48,20 @@ message MsgVerifyTransferIntentProof {
 
     // The signer address of the transfer intent proof to verify.
     string signer = 1;
-    // The proof of the transfer intent execution to be verified.
-    bytes proof = 2;
     // Unique id of the intent to verify the proof for
-    uint64 intentId = 3;
+    uint64 intentId = 2;
+    // the proof to be verified by the client.
+    bytes proof = 3;
+    // the height of the commitment root at which the proof is verified.
+    ProofHeight proof_height = 4 [(gogoproto.nullable) = false];
+    // the commitment key path.
+    MerklePath merkle_path = 5 [(gogoproto.nullable) = false];
+    // the value which is proven.
+    bytes value = 6;
+    // optional time delay
+    uint64 time_delay = 7;
+    // optional block delay
+    uint64 block_delay = 8;
 }
 
 // MsgVerifyTransferIntentProofResponse is the response type for the Msg/MsgVerifyTransferIntentProof RPC method.
