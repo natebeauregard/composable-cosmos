@@ -1,10 +1,66 @@
 syntax = "proto3";
 package composable.xcvm.v1beta1;
 
+import "amino/amino.proto";
+import "composable/xcvm/v1beta1/intent.proto";
 import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
 
 option go_package = "x/xcvm/types";
 
 // Msg defines the x/xcvm Msg service.
-service Msg { option (cosmos.msg.v1.service) = true; }
+service Msg {
+    option (cosmos.msg.v1.service) = true;
+
+    rpc SendTransferIntent(MsgSendTransferIntent)
+      returns (MsgSendTransferIntentResponse);
+
+    rpc VerifyTransferIntentProof(MsgVerifyTransferIntentProof)
+      returns (MsgVerifyTransferIntentProofResponse);
+}
+
+// MsgSendTransferIntent represents a message to send a transfer intent.
+message MsgSendTransferIntent {
+    option (cosmos.msg.v1.signer) = "from_address";
+
+    // The origin composable address of the transfer intent.
+    string from_address = 1;
+    // The destination EVM chain address for the transfer intent.
+    string destination_address = 2;
+    // The IBC light client ID for the EVM chain to execute the transfer intent on.
+    string clientId = 3;
+    // The amount of tokens to transfer.
+    // TODO: The coin denom (or alternatively cosmos-sdk/types.Coin) will be added to support non-native tokens in a future commit
+    string amount = 4 [
+        (gogoproto.customtype) = "cosmossdk.io/math.Uint",
+        (gogoproto.nullable) = false
+    ];
+}
+
+// MsgSendTransferIntentResponse is the response type for the Msg/SendTransferIntent RPC method.
+message MsgSendTransferIntentResponse {}
+
+// MsgVerifyTransferIntentProof represents a message to send a proof to verify
+// the successful execution of a transfer intent.
+message MsgVerifyTransferIntentProof {
+    option (cosmos.msg.v1.signer) = "signer";
+
+    // The signer address of the transfer intent proof to verify.
+    string signer = 1;
+    // Unique id of the intent to verify the proof for.
+    uint64 intentId = 2;
+    // the transaction receipt containing the transfer intent execution.
+    bytes txReceipt = 3;
+    // the signature of the receipt hash containing the transfer intent execution.
+    bytes receiptSignature = 4;
+    // the block header of the block containing the transfer intent execution.
+    bytes blockHeader = 5;
+    // the proof of the receipt in the block.
+    bytes receiptProof = 6;
+    // the body of the beacon block containing the transfer intent execution.
+    bytes beaconBlockBody = 7;
+}
+
+// MsgVerifyTransferIntentProofResponse is the response type for the Msg/MsgVerifyTransferIntentProof RPC method.
+message MsgVerifyTransferIntentProofResponse {}

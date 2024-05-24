@@ -7,4 +7,6 @@ option go_package = "x/xcvm/types";
 
 // GenesisState defines the module various parameters when first
 // initialized
-message GenesisState {}
+message GenesisState {
+    uint64 intent_id = 1;
+}
