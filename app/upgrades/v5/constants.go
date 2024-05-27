@@ -4,7 +4,7 @@ import (
 	"github.com/notional-labs/composable/v6/app/upgrades"
 	txboundary "github.com/notional-labs/composable/v6/x/tx-boundary/types"
 
-	store "github.com/cosmos/cosmos-sdk/store/types"
+	store "cosmossdk.io/store"
 )
 
 const (

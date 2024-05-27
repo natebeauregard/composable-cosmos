@@ -109,18 +109,28 @@ func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.Transfer
 	store.Set(transferIntentKey, transferIntentValue)
 }
 
-func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferIntentProof) error {
+func (k Keeper) GetTransferIntent(ctx sdk.Context, intentId uint64) (*types.TransferIntent, error) {
 	store := ctx.KVStore(k.storeKey)
 
-	intentId := msg.IntentId
 	transferIntentKey := types.GetPendingTransferIntentKeyById(intentId)
 	if !store.Has(transferIntentKey) {
-		return types.ErrInvalidIntentId
+		return nil, types.ErrInvalidIntentId
 	}
 
 	transferIntentBz := store.Get(transferIntentKey)
 	var transferIntent types.TransferIntent
 	if err := k.cdc.Unmarshal(transferIntentBz, &transferIntent); err != nil {
+		return nil, err
+	}
+
+	return &transferIntent, nil
+}
+
+func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferIntentProof) error {
+	store := ctx.KVStore(k.storeKey)
+
+	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
+	if err != nil {
 		return err
 	}
 
@@ -184,12 +194,14 @@ func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferI
 		return types.ErrBlockHashMismatch
 	}
 
-	if err := VerifyTransferEvent(txReceipt, transferIntent); err != nil {
+	if err := VerifyTransferEvent(txReceipt, *transferIntent, string(msg.ReceiptSignature)); err != nil {
 		return err
 	}
 
+	intentId := msg.IntentId
+
 	// Purge resolved transfer intent after proof verification
-	store.Delete(transferIntentKey)
+	store.Delete(types.GetPendingTransferIntentKeyById(intentId))
 
 	// TODO: unlock bounty for solver?
 
@@ -201,7 +213,7 @@ func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferI
 	return nil
 }
 
-func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent) error {
+func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverAddress string) error {
 	//TODO: find external package to import instead of using new struct
 	type LogTransfer struct {
 		From         common.Address
@@ -242,7 +254,7 @@ func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 	if transferEvent.To != common.HexToAddress(intent.DestinationAddress) {
 		return types.ErrDestinationAddressMismatch
 	}
-	if transferEvent.From != common.HexToAddress(intent.SourceAddress) {
+	if transferEvent.From != common.HexToAddress(solverAddress) {
 		return types.ErrSourceAddressMismatch
 	}
 	if transferEvent.Tokens.Cmp(intent.Amount.BigInt()) != 0 {

@@ -28,14 +28,16 @@ import (
 	transfermiddlewaretypes "github.com/notional-labs/composable/v6/x/transfermiddleware/types"
 	txboundarykeeper "github.com/notional-labs/composable/v6/x/tx-boundary/keeper"
 	txboundarytypes "github.com/notional-labs/composable/v6/x/tx-boundary/types"
+	xcvmkeeper "github.com/notional-labs/composable/v6/x/xcvm/keeper"
+	xcvmtypes "github.com/notional-labs/composable/v6/x/xcvm/types"
 	alliancemodule "github.com/terra-money/alliance/x/alliance"
 	alliancemodulekeeper "github.com/terra-money/alliance/x/alliance/keeper"
 	alliancemoduletypes "github.com/terra-money/alliance/x/alliance/types"
 
+	storetypes "cosmossdk.io/store"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/codec"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -135,6 +137,7 @@ type AppKeepers struct {
 	RouterKeeper             *routerkeeper.Keeper
 	RatelimitKeeper          ratelimitmodulekeeper.Keeper
 	AllianceKeeper           alliancemodulekeeper.Keeper
+	XCvmKeeper               xcvmkeeper.Keeper
 }
 
 // InitNormalKeepers initializes all 'normal' keepers.
@@ -269,6 +272,12 @@ func (appKeepers *AppKeepers) InitNormalKeepers(
 	appKeepers.TxBoundaryKeepper = txboundarykeeper.NewKeeper(
 		appCodec,
 		appKeepers.keys[txboundarytypes.StoreKey],
+		authorityAddress,
+	)
+
+	appKeepers.XCvmKeeper = xcvmkeeper.NewKeeper(
+		appCodec,
+		appKeepers.keys[xcvmtypes.StoreKey],
 		authorityAddress,
 	)
 

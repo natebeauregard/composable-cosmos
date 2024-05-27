@@ -13,6 +13,7 @@ import (
 	simappupgrades "github.com/notional-labs/composable/v6/app/ibctesting/simapp/upgrades"
 	version6 "github.com/notional-labs/composable/v6/app/ibctesting/simapp/upgrades/v6"
 	version7 "github.com/notional-labs/composable/v6/app/ibctesting/simapp/upgrades/v7"
+
 	// TODO: mint module not complete yet,
 	"github.com/notional-labs/composable/v6/x/mint"
 	mintkeeper "github.com/notional-labs/composable/v6/x/mint/keeper"
@@ -28,6 +29,7 @@ import (
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 	reflectionv1 "cosmossdk.io/api/cosmos/reflection/v1"
 
+	storetypes "cosmossdk.io/store"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
 	nodeservice "github.com/cosmos/cosmos-sdk/client/grpc/node"
@@ -38,7 +40,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/server/api"
 	"github.com/cosmos/cosmos-sdk/server/config"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	"github.com/cosmos/cosmos-sdk/testutil/testdata"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"

@@ -11,7 +11,7 @@ import (
 	txboundarytypes "github.com/notional-labs/composable/v6/x/tx-boundary/types"
 	alliancemoduletypes "github.com/terra-money/alliance/x/alliance/types"
 
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	storetypes "cosmossdk.io/store"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"

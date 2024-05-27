@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	storetypes "cosmossdk.io/store"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 

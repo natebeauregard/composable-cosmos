@@ -6,7 +6,7 @@ import (
 	"github.com/notional-labs/composable/v6/app/upgrades"
 	ratelimitmoduletypes "github.com/notional-labs/composable/v6/x/ratelimit/types"
 
-	store "github.com/cosmos/cosmos-sdk/store/types"
+	store "cosmossdk.io/store"
 
 	icahosttypes "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts/host/types"
 )
