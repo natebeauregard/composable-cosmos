@@ -15,14 +15,3 @@ message TransferIntent {
     (gogoproto.nullable) = false
   ];
 }
-
-message ProofHeight {
-  // the revision that the client is currently on
-  uint64 revision_number = 1;
-  // the height within the given revision
-  uint64 revision_height = 2;
-}
-
-message MerklePath {
-  repeated string key_path = 1;
-}
