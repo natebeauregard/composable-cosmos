@@ -62,17 +62,17 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 
 var _ sdk.Msg = &MsgVerifyTransferIntentProof{}
 
-// func NewMsgVerifyTransferIntentProof(
-// 	signer string,
-// 	proof []byte,
-// 	intentId uint64,
-// ) *MsgVerifyTransferIntentProof {
-// 	return &MsgVerifyTransferIntentProof{
-// 		Signer:   signer,
-// 		Proof:    proof,
-// 		IntentId: intentId,
-// 	}
-// }
+func NewMsgVerifyTransferIntentProof(
+	signer string,
+	proof []byte,
+	intentId uint64,
+) *MsgVerifyTransferIntentProof {
+	return &MsgVerifyTransferIntentProof{
+		Signer:   signer,
+		Proof:    proof,
+		IntentId: intentId,
+	}
+}
 
 // Type Implements Msg.
 func (MsgVerifyTransferIntentProof) Type() string { return TypeMsgVerifyTransferIntentProof }
