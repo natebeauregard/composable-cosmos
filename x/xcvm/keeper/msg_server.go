@@ -28,7 +28,7 @@ func (k Keeper) SendTransferIntent(goCtx context.Context, msg *types.MsgSendTran
 		return nil, err
 	}
 
-	err := k.SendValidatedTransferIntent(ctx, msg)
+	err := k.SendEthTransferIntent(ctx, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (k Keeper) VerifyTransferIntentProof(goCtx context.Context, msg *types.MsgV
 		return nil, err
 	}
 
-	err := k.VerifyIntentProof(ctx, msg)
+	err := k.VerifyEthTransferIntentProof(ctx, msg)
 	if err != nil {
 		return nil, err
 	}

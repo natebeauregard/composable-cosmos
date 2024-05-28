@@ -15,15 +15,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	rlp "github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/golang/protobuf/proto"
 	"github.com/notional-labs/composable/v6/x/xcvm/types"
-	prysmtypes "github.com/prysmaticlabs/prysm/v5/proto/eth/v1"
+	// prysmtypes "github.com/prysmaticlabs/prysm/proto/eth/v1"
 )
 
 type receiptProof struct {
-	receipts map[[32]byte][]byte
+	Receipts map[[32]byte][]byte
 }
 
 func (rp receiptProof) Has(key []byte) (bool, error) {
@@ -32,7 +32,7 @@ func (rp receiptProof) Has(key []byte) (bool, error) {
 	}
 	var keyArr [32]byte
 	copy(keyArr[:], key[:32])
-	_, ok := rp.receipts[keyArr]
+	_, ok := rp.Receipts[keyArr]
 	return ok, nil
 }
 
@@ -42,18 +42,21 @@ func (rp receiptProof) Get(key []byte) ([]byte, error) {
 	}
 	var keyArr [32]byte
 	copy(keyArr[:], key[:32])
-	value, ok := rp.receipts[keyArr]
+	value, ok := rp.Receipts[keyArr]
 	if !ok {
 		return nil, types.ErrReceiptNotFound
 	}
 	return value, nil
 }
 
-func (k Keeper) SendValidatedTransferIntent(ctx sdk.Context, msg *types.MsgSendTransferIntent) error {
+func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransferIntent) error {
 	clientId := msg.ClientId
 
-	err := k.ValidateClientState(ctx, clientId)
-	if err != nil {
+	if err := msg.ValidateBasic(); err != nil {
+		return err
+	}
+
+	if err := k.ValidateClientState(ctx, clientId); err != nil {
 		return err
 	}
 
@@ -109,18 +112,28 @@ func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.Transfer
 	store.Set(transferIntentKey, transferIntentValue)
 }
 
-func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferIntentProof) error {
+func (k Keeper) GetTransferIntent(ctx sdk.Context, intentId uint64) (*types.TransferIntent, error) {
 	store := ctx.KVStore(k.storeKey)
 
-	intentId := msg.IntentId
 	transferIntentKey := types.GetPendingTransferIntentKeyById(intentId)
 	if !store.Has(transferIntentKey) {
-		return types.ErrInvalidIntentId
+		return nil, types.ErrInvalidIntentId
 	}
 
 	transferIntentBz := store.Get(transferIntentKey)
 	var transferIntent types.TransferIntent
 	if err := k.cdc.Unmarshal(transferIntentBz, &transferIntent); err != nil {
+		return nil, err
+	}
+
+	return &transferIntent, nil
+}
+
+func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferIntentProof) error {
+	store := ctx.KVStore(k.storeKey)
+
+	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
+	if err != nil {
 		return err
 	}
 
@@ -155,7 +168,6 @@ func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferI
 	if err != nil {
 		return err
 	}
-
 	clientStateBz, err := proto.Marshal(clientState)
 	if err != nil {
 		return fmt.Errorf("marshal client state: %v", err)
@@ -169,39 +181,35 @@ func (k Keeper) VerifyIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferI
 	beaconBlockBodyRootSlice := ethClientState.GetInner().GetFinalizedHeader().GetBodyRoot()
 	copy(beaconBlockBodyRoot[:], beaconBlockBodyRootSlice)
 
-	var beaconBlockBody prysmtypes.BeaconBlockBody
-	if err := beaconBlockBody.UnmarshalSSZ(msg.BeaconBlockBody); err != nil {
-		return fmt.Errorf("unmarshal beacon block body: %v", err)
-	}
+	// TODO: investigate prysm dependency error
+	// var beaconBlockBody prysmtypes.BeaconBlockBody
+	// if err := beaconBlockBody.UnmarshalSSZ(msg.BeaconBlockBody); err != nil {
+	// 	return fmt.Errorf("unmarshal beacon block body: %v", err)
+	// }
 
-	beaconBlockBodyHash, err := beaconBlockBody.HashTreeRoot()
-	if beaconBlockBodyHash != beaconBlockBodyRoot {
-		return types.ErrBlockBodyMismatch
-	}
+	// beaconBlockBodyHash, err := beaconBlockBody.HashTreeRoot()
+	// if beaconBlockBodyHash != beaconBlockBodyRoot {
+	// 	return types.ErrBlockBodyMismatch
+	// }
 
-	blockHash := common.BytesToHash(beaconBlockBody.GetEth1Data().GetBlockHash())
-	if blockHash != txReceipt.BlockHash {
-		return types.ErrBlockHashMismatch
-	}
+	// blockHash := common.BytesToHash(beaconBlockBody.GetEth1Data().GetBlockHash())
+	// if blockHash != txReceipt.BlockHash {
+	// 	return types.ErrBlockHashMismatch
+	// }
 
-	if err := VerifyTransferEvent(txReceipt, transferIntent); err != nil {
+	if err := VerifyTransferEvent(txReceipt, *transferIntent, string(msg.ReceiptSignature)); err != nil {
 		return err
 	}
 
-	// Purge resolved transfer intent after proof verification
-	store.Delete(transferIntentKey)
+	// Purge resolved transfer intent after proof verification?
+	store.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
 	// TODO: unlock bounty for solver?
-
-	ctx.EventManager().EmitEvent(sdk.NewEvent(
-		types.EventVerifyTransferIntentProof,
-		sdk.NewAttribute(types.AttributeKeyIntentId, strconv.FormatUint(intentId, 10)),
-	))
 
 	return nil
 }
 
-func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent) error {
+func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverAddress string) error {
 	//TODO: find external package to import instead of using new struct
 	type LogTransfer struct {
 		From         common.Address
@@ -242,7 +250,7 @@ func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 	if transferEvent.To != common.HexToAddress(intent.DestinationAddress) {
 		return types.ErrDestinationAddressMismatch
 	}
-	if transferEvent.From != common.HexToAddress(intent.SourceAddress) {
+	if transferEvent.From != common.HexToAddress(solverAddress) {
 		return types.ErrSourceAddressMismatch
 	}
 	if transferEvent.Tokens.Cmp(intent.Amount.BigInt()) != 0 {

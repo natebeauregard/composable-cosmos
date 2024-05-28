@@ -141,7 +141,7 @@ var xxx_messageInfo_MsgSendTransferIntentResponse proto.InternalMessageInfo
 type MsgVerifyTransferIntentProof struct {
 	// The signer address of the transfer intent proof to verify.
 	Signer string `protobuf:"bytes,1,opt,name=signer,proto3" json:"signer,omitempty"`
-	// Unique id of the intent to verify the proof for.
+	// Unique id of the intent to verify the proof for
 	IntentId uint64 `protobuf:"varint,2,opt,name=intentId,proto3" json:"intentId,omitempty"`
 	// the transaction receipt containing the transfer intent execution.
 	TxReceipt []byte `protobuf:"bytes,3,opt,name=txReceipt,proto3" json:"txReceipt,omitempty"`

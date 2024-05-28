@@ -28,6 +28,8 @@ import (
 	transfermiddlewaretypes "github.com/notional-labs/composable/v6/x/transfermiddleware/types"
 	txboundarykeeper "github.com/notional-labs/composable/v6/x/tx-boundary/keeper"
 	txboundarytypes "github.com/notional-labs/composable/v6/x/tx-boundary/types"
+	xcvmkeeper "github.com/notional-labs/composable/v6/x/xcvm/keeper"
+	xcvmtypes "github.com/notional-labs/composable/v6/x/xcvm/types"
 	alliancemodule "github.com/terra-money/alliance/x/alliance"
 	alliancemodulekeeper "github.com/terra-money/alliance/x/alliance/keeper"
 	alliancemoduletypes "github.com/terra-money/alliance/x/alliance/types"
@@ -135,6 +137,7 @@ type AppKeepers struct {
 	RouterKeeper             *routerkeeper.Keeper
 	RatelimitKeeper          ratelimitmodulekeeper.Keeper
 	AllianceKeeper           alliancemodulekeeper.Keeper
+	XCvmKeeper               xcvmkeeper.Keeper
 }
 
 // InitNormalKeepers initializes all 'normal' keepers.
@@ -348,6 +351,12 @@ func (appKeepers *AppKeepers) InitNormalKeepers(
 		// TODO: Implement ICS4Wrapper in Records and pass records keeper here
 		&hooksICS4Wrapper,
 		appKeepers.TransferMiddlewareKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+	)
+
+	appKeepers.XCvmKeeper = xcvmkeeper.NewKeeper(
+		appCodec,
+		appKeepers.keys[xcvmtypes.StoreKey],
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 

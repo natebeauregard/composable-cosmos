@@ -48,7 +48,7 @@ message MsgVerifyTransferIntentProof {
 
     // The signer address of the transfer intent proof to verify.
     string signer = 1;
-    // Unique id of the intent to verify the proof for.
+    // Unique id of the intent to verify the proof for
     uint64 intentId = 2;
     // the transaction receipt containing the transfer intent execution.
     bytes txReceipt = 3;
