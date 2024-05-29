@@ -19,14 +19,14 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/golang/protobuf/proto"
 	"github.com/notional-labs/composable/v6/x/xcvm/types"
-	// prysmtypes "github.com/prysmaticlabs/prysm/proto/eth/v1"
+	prysmtypes "github.com/prysmaticlabs/prysm/v4/proto/eth/v1"
 )
 
-type receiptProof struct {
+type ReceiptProof struct {
 	Receipts map[[32]byte][]byte
 }
 
-func (rp receiptProof) Has(key []byte) (bool, error) {
+func (rp ReceiptProof) Has(key []byte) (bool, error) {
 	if len(key) != 32 {
 		return false, types.ErrInvalidReceiptKey
 	}
@@ -36,7 +36,7 @@ func (rp receiptProof) Has(key []byte) (bool, error) {
 	return ok, nil
 }
 
-func (rp receiptProof) Get(key []byte) ([]byte, error) {
+func (rp ReceiptProof) Get(key []byte) ([]byte, error) {
 	if len(key) != 32 {
 		return nil, types.ErrInvalidReceiptKey
 	}
@@ -102,7 +102,7 @@ func (k Keeper) SetNextIntentId(ctx sdk.Context, intentId uint64) {
 	store.Set(types.TransferIntentIdKey, intentIdBz)
 }
 
-// Stores an intent object in the store
+// AddTransferIntent stores an intent object in the store
 func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.TransferIntent, intentId uint64) {
 	store := ctx.KVStore(k.storeKey)
 
@@ -146,7 +146,7 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		return err
 	}
 
-	var receiptProof receiptProof
+	var receiptProof ReceiptProof
 	if err := json.Unmarshal(msg.ReceiptProof, &receiptProof); err != nil {
 		return err
 	}
@@ -181,21 +181,20 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	beaconBlockBodyRootSlice := ethClientState.GetInner().GetFinalizedHeader().GetBodyRoot()
 	copy(beaconBlockBodyRoot[:], beaconBlockBodyRootSlice)
 
-	// TODO: investigate prysm dependency error
-	// var beaconBlockBody prysmtypes.BeaconBlockBody
-	// if err := beaconBlockBody.UnmarshalSSZ(msg.BeaconBlockBody); err != nil {
-	// 	return fmt.Errorf("unmarshal beacon block body: %v", err)
-	// }
+	var beaconBlockBody prysmtypes.BeaconBlockBody
+	if err := beaconBlockBody.UnmarshalSSZ(msg.BeaconBlockBody); err != nil {
+		return fmt.Errorf("unmarshal beacon block body: %v", err)
+	}
 
-	// beaconBlockBodyHash, err := beaconBlockBody.HashTreeRoot()
-	// if beaconBlockBodyHash != beaconBlockBodyRoot {
-	// 	return types.ErrBlockBodyMismatch
-	// }
+	beaconBlockBodyHash, err := beaconBlockBody.HashTreeRoot()
+	if beaconBlockBodyHash != beaconBlockBodyRoot {
+		return types.ErrBlockBodyMismatch
+	}
 
-	// blockHash := common.BytesToHash(beaconBlockBody.GetEth1Data().GetBlockHash())
-	// if blockHash != txReceipt.BlockHash {
-	// 	return types.ErrBlockHashMismatch
-	// }
+	blockHash := common.BytesToHash(beaconBlockBody.GetEth1Data().GetBlockHash())
+	if blockHash != txReceipt.BlockHash {
+		return types.ErrBlockHashMismatch
+	}
 
 	if err := VerifyTransferEvent(txReceipt, *transferIntent, string(msg.ReceiptSignature)); err != nil {
 		return err
