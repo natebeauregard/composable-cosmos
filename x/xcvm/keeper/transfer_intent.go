@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
@@ -22,9 +21,7 @@ import (
 	prysmtypes "github.com/prysmaticlabs/prysm/v4/proto/eth/v1"
 )
 
-type ReceiptProof struct {
-	Receipts map[[32]byte][]byte
-}
+type ReceiptProof map[[32]byte][]byte
 
 func (rp ReceiptProof) Has(key []byte) (bool, error) {
 	if len(key) != 32 {
@@ -32,7 +29,7 @@ func (rp ReceiptProof) Has(key []byte) (bool, error) {
 	}
 	var keyArr [32]byte
 	copy(keyArr[:], key[:32])
-	_, ok := rp.Receipts[keyArr]
+	_, ok := rp[keyArr]
 	return ok, nil
 }
 
@@ -42,7 +39,7 @@ func (rp ReceiptProof) Get(key []byte) ([]byte, error) {
 	}
 	var keyArr [32]byte
 	copy(keyArr[:], key[:32])
-	value, ok := rp.Receipts[keyArr]
+	value, ok := rp[keyArr]
 	if !ok {
 		return nil, types.ErrReceiptNotFound
 	}
@@ -147,7 +144,7 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	}
 
 	var receiptProof ReceiptProof
-	if err := json.Unmarshal(msg.ReceiptProof, &receiptProof); err != nil {
+	if err := rlp.DecodeBytes(msg.ReceiptProof, &receiptProof); err != nil {
 		return err
 	}
 

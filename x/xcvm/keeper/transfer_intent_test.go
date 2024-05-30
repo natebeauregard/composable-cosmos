@@ -6,6 +6,8 @@ import (
 	ibctesting "github.com/cosmos/ibc-go/v7/testing"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/notional-labs/composable/v6/x/xcvm/keeper"
 	"strconv"
 	"testing"
 	"time"
@@ -29,14 +31,17 @@ type TransferIntentTestSuite struct {
 	ctx sdk.Context
 	app *app.ComposableApp
 
-	chainA *ibctesting.TestChain
-	mockVM *wasmtesting.MockWasmEngine
+	coordinator *ibctesting.Coordinator
+	chainA      *ibctesting.TestChain
+	mockVM      *wasmtesting.MockWasmEngine
 }
 
 func (suite *TransferIntentTestSuite) SetupTest() {
 	suite.app = helpers.SetupComposableAppWithValSet(suite.T())
 	suite.ctx = suite.app.BaseApp.NewContext(false, tmproto.Header{Height: 1, ChainID: "centauri-1", Time: time.Now().UTC()})
 
+	suite.coordinator = ibctesting.NewCoordinator(suite.T(), 1)
+	suite.chainA = suite.coordinator.GetChain(ibctesting.GetChainID(1))
 	//suite.mockVM = wasmtesting.NewIBCContractMockWasmEngine()
 }
 
@@ -146,13 +151,15 @@ func (suite *TransferIntentTestSuite) TestTransferIntent() {
 	txReceiptBz, err := txReceipt.MarshalBinary()
 	suite.Require().NoError(err)
 
-	// TODO: update placeholder receiptProof
-	receiptProof := []byte{1}
+	receiptProof := make(keeper.ReceiptProof)
+	receiptProof[common.HexToHash(receiptHash)] = txReceiptBz
+	receiptProofBz, err := rlp.EncodeToBytes(receiptProof)
+	suite.Require().NoError(err)
 
 	blockHeader := &gethtypes.Header{
 		ReceiptHash: common.HexToHash(receiptHash),
 	}
-	blockHeaderBz, err := blockHeader.MarshalJSON()
+	blockHeaderBz, err := rlp.EncodeToBytes(blockHeader)
 	suite.Require().NoError(err)
 
 	msgVerifyTransferIntentProof := types.MsgVerifyTransferIntentProof{
@@ -161,7 +168,7 @@ func (suite *TransferIntentTestSuite) TestTransferIntent() {
 		TxReceipt:        txReceiptBz,
 		ReceiptSignature: []byte(solverEthAddress),
 		BlockHeader:      blockHeaderBz,
-		ReceiptProof:     receiptProof,
+		ReceiptProof:     receiptProofBz,
 		BeaconBlockBody:  beaconBlockBodyBz,
 	}
 
