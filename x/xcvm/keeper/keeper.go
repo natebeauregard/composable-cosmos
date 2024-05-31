@@ -24,11 +24,12 @@ type Keeper struct {
 }
 
 // NewKeeper returns keeper
-func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, authority string) Keeper {
+func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, authority string, clientKeeper types.ClientKeeper) Keeper {
 	return Keeper{
-		cdc:       cdc,
-		storeKey:  storeKey,
-		authority: authority,
+		cdc:          cdc,
+		storeKey:     storeKey,
+		clientKeeper: clientKeeper,
+		authority:    authority,
 	}
 }
 
