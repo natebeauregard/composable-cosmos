@@ -9,6 +9,7 @@ import (
 	ratelimitmoduletypes "github.com/notional-labs/composable/v6/x/ratelimit/types"
 	transfermiddlewaretypes "github.com/notional-labs/composable/v6/x/transfermiddleware/types"
 	txboundarytypes "github.com/notional-labs/composable/v6/x/tx-boundary/types"
+	xcvmtypes "github.com/notional-labs/composable/v6/x/xcvm/types"
 	alliancemoduletypes "github.com/terra-money/alliance/x/alliance/types"
 
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
@@ -45,7 +46,7 @@ func (appKeepers *AppKeepers) GenerateKeys() {
 		evidencetypes.StoreKey, ibctransfertypes.StoreKey, icqtypes.StoreKey, capabilitytypes.StoreKey, consensusparamtypes.StoreKey, wasm08types.StoreKey,
 		crisistypes.StoreKey, routertypes.StoreKey, transfermiddlewaretypes.StoreKey, group.StoreKey, minttypes.StoreKey,
 		alliancemoduletypes.StoreKey, wasm.StoreKey, ibchookstypes.StoreKey, icahosttypes.StoreKey, ratelimitmoduletypes.StoreKey, txboundarytypes.StoreKey,
-		authzkeeper.StoreKey,
+		authzkeeper.StoreKey, xcvmtypes.StoreKey,
 	)
 
 	// Define transient store keys

@@ -98,3 +98,7 @@ message BeaconBlockBody {
   // At most MAX_VOLUNTARY_EXITS.
   repeated bytes voluntary_exits = 8;
 }
+
+message ReceiptProof {
+    map<string, bytes> proof = 1;
+}

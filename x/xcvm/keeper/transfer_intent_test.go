@@ -2,91 +2,70 @@ package keeper_test
 
 import (
 	"encoding/binary"
-	"github.com/CosmWasm/wasmd/x/wasm/keeper/wasmtesting"
-	ibctesting "github.com/cosmos/ibc-go/v7/testing"
+	"github.com/cosmos/cosmos-sdk/types/address"
+	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	wasmtypes "github.com/cosmos/ibc-go/v7/modules/light-clients/08-wasm/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/notional-labs/composable/v6/x/xcvm/keeper"
+	"github.com/ethereum/go-ethereum/trie"
+	prysmtypes "github.com/prysmaticlabs/prysm/v4/proto/eth/v1"
+	"os"
 	"strconv"
 	"testing"
 	"time"
 
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
-	wasmtypes "github.com/cosmos/ibc-go/v7/modules/light-clients/08-wasm/types"
-	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/notional-labs/composable/v6/app"
 	"github.com/notional-labs/composable/v6/app/helpers"
-	testhelper "github.com/notional-labs/composable/v6/x/xcvm/testing"
 	"github.com/notional-labs/composable/v6/x/xcvm/types"
-	prysmtypes "github.com/prysmaticlabs/prysm/v4/proto/eth/v1"
 	"github.com/stretchr/testify/suite"
 )
 
 type TransferIntentTestSuite struct {
 	suite.Suite
 
-	ctx sdk.Context
-	app *app.ComposableApp
-
-	coordinator *ibctesting.Coordinator
-	chainA      *ibctesting.TestChain
-	mockVM      *wasmtesting.MockWasmEngine
+	ctx        sdk.Context
+	app        *app.ComposableApp
+	wasmCodeId []byte
 }
 
 func (suite *TransferIntentTestSuite) SetupTest() {
 	suite.app = helpers.SetupComposableAppWithValSet(suite.T())
 	suite.ctx = suite.app.BaseApp.NewContext(false, tmproto.Header{Height: 1, ChainID: "centauri-1", Time: time.Now().UTC()})
 
-	suite.coordinator = ibctesting.NewCoordinator(suite.T(), 1)
-	suite.chainA = suite.coordinator.GetChain(ibctesting.GetChainID(1))
-	//suite.mockVM = wasmtesting.NewIBCContractMockWasmEngine()
+	// get wasm ethereum light client
+	wasmBytes, err := os.ReadFile("testdata/icsxx_ethereum_cw.wasm")
+	suite.Require().NoError(err)
+	govAddress := sdk.AccAddress(address.Module("gov" /* github.com/cosmos/cosmos-sdk/x/gov.ModuleName */)).String()
+	resp, err := suite.app.Wasm08Keeper.PushNewWasmCode(suite.ctx, &wasmtypes.MsgPushNewWasmCode{
+		Signer: govAddress,
+		Code:   wasmBytes,
+	})
+	suite.Require().NoError(err)
+	suite.wasmCodeId = resp.CodeId
 }
 
 func TestKeeperTestSuite(t *testing.T) {
 	suite.Run(t, new(TransferIntentTestSuite))
 }
 
-// E2E tests with mocked solver behavior for sending and verifying transfer intents
-func (suite *TransferIntentTestSuite) TestTransferIntent() {
+// Unit test for sending transfer intents
+func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 	suite.SetupTest()
 
-	// generate user and solver accounts
-	accounts := app.AddTestAddrs(suite.app, suite.ctx, 2, sdk.NewInt(10000000))
-	userAddress := accounts[0]
-	solverAddress := accounts[1]
+	// generate user account
+	userAddress := app.AddTestAddrs(suite.app, suite.ctx, 1, sdk.NewInt(10000000))[0]
 
 	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
-	const solverEthAddress string = "0x02DB85F48Ffcf5F5Ea1fCF078eb5ABf468e53fAb"
-	const blockHash string = "0x3f07a9c83155594c000642e7d60e8a8a00038d03e9849171a05ed0e2d47acbb3"
-	const receiptHash string = "0x633a90413361fe1889d1e5ab4cb222608d224c458b30289b8390496a3fab29d8"
 
-	beaconBlockBody := &prysmtypes.BeaconBlockBody{
-		RandaoReveal: make([]byte, 96),
-		Eth1Data: &prysmtypes.Eth1Data{
-			DepositRoot:  make([]byte, 32),
-			DepositCount: 0,
-			BlockHash:    common.FromHex(blockHash),
-		},
-		Graffiti: make([]byte, 32),
-	}
-	beaconBlockBodyBz, err := beaconBlockBody.MarshalSSZ()
-	suite.Require().NoError(err)
-	bodyRoot, err := beaconBlockBody.HashTreeRoot()
-	suite.Require().NoError(err)
-
-	ethClientState := &types.ClientState{
-		Inner: &types.LightClientState{
-			FinalizedHeader: &types.BeaconBlockHeader{
-				BodyRoot: bodyRoot[:],
-			},
-		},
-	}
+	ethClientState := &types.ClientState{}
 	ethClientStateBz, err := ethClientState.Marshal()
 	suite.Require().NoError(err)
-	clientState := wasmtypes.NewClientState(ethClientStateBz, testhelper.Code, clienttypes.NewHeight(0, 0))
+	clientState := wasmtypes.NewClientState(ethClientStateBz, suite.wasmCodeId, clienttypes.NewHeight(0, 0))
 	consensusState := &wasmtypes.ConsensusState{}
 	ethClientId, err := suite.app.IBCKeeper.ClientKeeper.CreateClient(suite.ctx, clientState, consensusState)
 	suite.Require().NoError(err)
@@ -112,7 +91,7 @@ func (suite *TransferIntentTestSuite) TestTransferIntent() {
 		ClientId:           msgSendTransferIntent.ClientId,
 	}
 	suite.Require().NoError(err)
-	suite.Require().Equal(expectedTransferIntent, transferIntent)
+	suite.Require().Equal(&expectedTransferIntent, transferIntent)
 
 	// Verify the correct event is emitted
 	expectedTransferIntentEvent := sdk.NewEvent(
@@ -125,13 +104,64 @@ func (suite *TransferIntentTestSuite) TestTransferIntent() {
 	)
 	events := suite.ctx.EventManager().Events()
 	suite.Require().Equal(expectedTransferIntentEvent, events[len(events)-1])
+}
 
-	// Solver listens to the event, posts collateral and executes the intent
-	// TODO: add collateral logic once implemented
+// Unit test for verifying transfer intent proofs
+func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
+	suite.SetupTest()
 
-	// TODO: update client/consensus state with solver behavior
+	// generate user and solver accounts
+	accounts := app.AddTestAddrs(suite.app, suite.ctx, 2, sdk.NewInt(10000000))
+	userAddress := accounts[0]
+	solverAddress := accounts[1]
 
-	// Solver sends a message to verify the intent was properly executed
+	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
+	const solverEthAddress string = "0x02DB85F48Ffcf5F5Ea1fCF078eb5ABf468e53fAb"
+	const blockHash string = "0x3f07a9c83155594c000642e7d60e8a8a00038d03e9849171a05ed0e2d47acbb3"
+
+	// construct beacon block body and header to use for the light client state
+	beaconBlockBody := &prysmtypes.BeaconBlockBody{
+		RandaoReveal: make([]byte, 96),
+		Eth1Data: &prysmtypes.Eth1Data{
+			DepositRoot:  make([]byte, 32),
+			DepositCount: 0,
+			BlockHash:    common.FromHex(blockHash),
+		},
+		Graffiti: make([]byte, 32),
+	}
+	beaconBlockBodyBz, err := beaconBlockBody.MarshalSSZ()
+	suite.Require().NoError(err)
+	bodyRoot, err := beaconBlockBody.HashTreeRoot()
+	suite.Require().NoError(err)
+
+	ethClientState := &types.ClientState{
+		Inner: &types.LightClientState{
+			FinalizedHeader: &types.BeaconBlockHeader{
+				BodyRoot: bodyRoot[:],
+			},
+		},
+	}
+	ethClientStateBz, err := ethClientState.Marshal()
+	suite.Require().NoError(err)
+
+	// create the client with a specified client state and consensus state
+	clientState := wasmtypes.NewClientState(ethClientStateBz, suite.wasmCodeId, clienttypes.NewHeight(0, 0))
+	consensusState := &wasmtypes.ConsensusState{}
+	ethClientId, err := suite.app.IBCKeeper.ClientKeeper.CreateClient(suite.ctx, clientState, consensusState)
+	suite.Require().NoError(err)
+
+	// Add transfer intent to the XCVM module store
+	const intentId uint64 = 0
+	const tokenAmount uint64 = 10000
+	transferIntent := types.TransferIntent{
+		SourceAddress:      userAddress.String(),
+		DestinationAddress: destinationEthAddress,
+		ClientId:           ethClientId,
+		Amount:             sdk.NewUint(tokenAmount),
+	}
+	suite.app.XCvmKeeper.AddTransferIntent(suite.ctx, transferIntent, intentId)
+
+	// create ERC20 transfer event log to use for intent proof
 	tokenAmountBz := make([]byte, 8)
 	binary.BigEndian.PutUint64(tokenAmountBz, tokenAmount)
 	logs := []*gethtypes.Log{
@@ -148,20 +178,31 @@ func (suite *TransferIntentTestSuite) TestTransferIntent() {
 		Logs:      logs,
 		BlockHash: common.HexToHash(blockHash),
 	}
-	txReceiptBz, err := txReceipt.MarshalBinary()
+	txReceiptBz, err := txReceipt.MarshalJSON() // TODO: investigate why MarshalJSON needs to be used for passing into the Msg and why MarshalBinary loses some receipt information when unmarshalling
+	suite.Require().NoError(err)
+	txReceiptBinary, err := txReceipt.MarshalBinary()
 	suite.Require().NoError(err)
 
-	receiptProof := make(keeper.ReceiptProof)
-	receiptProof[common.HexToHash(receiptHash)] = txReceiptBz
-	receiptProofBz, err := rlp.EncodeToBytes(receiptProof)
+	// create receipt proof to verify provided receipt was included in the block
+	txReceiptHash := crypto.Keccak256(txReceiptBinary)
+	receiptProof := types.ReceiptProof{
+		Proof: make(map[string][]byte),
+	}
+	receiptTrie := trie.NewEmpty(trie.NewDatabase(rawdb.NewMemoryDatabase()))
+	receiptTrie.Update(txReceiptHash[:], txReceiptBinary)
+	err = receiptTrie.Prove(txReceiptHash[:], 0, receiptProof)
+	suite.Require().NoError(err)
+	receiptProofBz, err := receiptProof.Marshal()
 	suite.Require().NoError(err)
 
+	receiptHash := receiptTrie.Hash()
 	blockHeader := &gethtypes.Header{
-		ReceiptHash: common.HexToHash(receiptHash),
+		ReceiptHash: receiptHash,
 	}
 	blockHeaderBz, err := rlp.EncodeToBytes(blockHeader)
 	suite.Require().NoError(err)
 
+	// create Msg to verify intent execution proof
 	msgVerifyTransferIntentProof := types.MsgVerifyTransferIntentProof{
 		Signer:           solverAddress.String(),
 		IntentId:         intentId,
@@ -172,7 +213,7 @@ func (suite *TransferIntentTestSuite) TestTransferIntent() {
 		BeaconBlockBody:  beaconBlockBodyBz,
 	}
 
-	// Assert proof was verified correctly
+	// Assert intent was verified correctly
 	_, err = suite.app.XCvmKeeper.VerifyTransferIntentProof(suite.ctx, &msgVerifyTransferIntentProof)
 	suite.Require().NoError(err)
 

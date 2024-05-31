@@ -5,8 +5,6 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-
-	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 )
 
 const (
@@ -38,9 +36,9 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 	}
 
 	// validate clientId
-	if err := host.ClientIdentifierValidator(msg.ClientId); err != nil {
-		return err
-	}
+	//if err := host.ClientIdentifierValidator(msg.ClientId); err != nil {
+	//	return err
+	//}
 
 	return nil
 }
