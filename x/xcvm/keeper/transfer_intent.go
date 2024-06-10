@@ -3,6 +3,7 @@ package keeper
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/store"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/gogoproto/proto"
 	ibccore "github.com/cosmos/ibc-go/v7/modules/core/exported"
@@ -133,6 +134,10 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		return fmt.Errorf("verify transfer event: %v", err)
 	}
 
+	if err := VerifyReceiptUniqueness(store, txReceipt); err != nil {
+		return fmt.Errorf("verify receipt uniqueness: %v", err)
+	}
+
 	// TODO: verify solver signature
 
 	// Purge resolved transfer intent after proof verification?
@@ -149,18 +154,41 @@ func VerifyReceiptProof(blockHeader gethtypes.Header, txReceipt gethtypes.Receip
 		return err
 	}
 
-	//Get binary representation of txReceipt rlp encoding
-	txReceiptBz, err := txReceipt.MarshalBinary()
+	txReceiptHash, err := GetTxReceiptHash(txReceipt)
 	if err != nil {
 		return err
 	}
-	txReceiptHash := crypto.Keccak256(txReceiptBz)
 
 	receiptsRoot := blockHeader.ReceiptHash
 	if _, err = trie.VerifyProof(receiptsRoot, txReceiptHash, receiptProof); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func GetTxReceiptHash(txReceipt gethtypes.Receipt) ([]byte, error) {
+	//Get binary representation of txReceipt rlp encoding
+	txReceiptBz, err := txReceipt.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("get tx receipt hash: %v", err)
+	}
+	txReceiptHash := crypto.Keccak256(txReceiptBz)
+	return txReceiptHash, nil
+}
+
+func VerifyReceiptUniqueness(store store.KVStore, txReceipt gethtypes.Receipt) error {
+	txReceiptHash, err := GetTxReceiptHash(txReceipt)
+	if err != nil {
+		return err
+	}
+
+	receiptKey := types.GetUsedReceiptKey(txReceiptHash, txReceipt.BlockHash)
+	if store.Has(receiptKey) {
+		return types.ErrReceiptAlreadyProcessed
+	}
+
+	store.Set(receiptKey, []byte{0x01})
 	return nil
 }
 
