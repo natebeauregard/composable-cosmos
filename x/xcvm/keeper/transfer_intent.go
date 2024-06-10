@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"crypto/ecdsa"
 	"encoding/binary"
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/store"
@@ -22,11 +23,11 @@ import (
 func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransferIntent) error {
 	clientId := msg.ClientId
 
-	if err := k.ValidateClientState(ctx, clientId); err != nil {
+	if err := k.validateClientState(ctx, clientId); err != nil {
 		return err
 	}
 
-	intentId := k.GetNextIntentId(ctx)
+	intentId := k.getNextIntentId(ctx)
 	transferIntent := types.TransferIntent{
 		ClientId:           clientId,
 		SourceAddress:      msg.FromAddress,
@@ -52,10 +53,10 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 	return nil
 }
 
-func (k Keeper) GetNextIntentId(ctx sdk.Context) uint64 {
-	store := ctx.KVStore(k.storeKey)
+func (k Keeper) getNextIntentId(ctx sdk.Context) uint64 {
+	kvStore := ctx.KVStore(k.storeKey)
 
-	intentIdBz := store.Get(types.TransferIntentIdKey)
+	intentIdBz := kvStore.Get(types.TransferIntentIdKey)
 	var intentId uint64
 	if intentIdBz == nil {
 		intentId = 0
@@ -67,31 +68,31 @@ func (k Keeper) GetNextIntentId(ctx sdk.Context) uint64 {
 }
 
 func (k Keeper) SetNextIntentId(ctx sdk.Context, intentId uint64) {
-	store := ctx.KVStore(k.storeKey)
+	kvStore := ctx.KVStore(k.storeKey)
 	intentIdBz := make([]byte, 8)
 	binary.BigEndian.PutUint64(intentIdBz, intentId)
-	store.Set(types.TransferIntentIdKey, intentIdBz)
+	kvStore.Set(types.TransferIntentIdKey, intentIdBz)
 }
 
 // AddTransferIntent stores an intent object in the store
 func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.TransferIntent, intentId uint64) {
-	store := ctx.KVStore(k.storeKey)
+	kvStore := ctx.KVStore(k.storeKey)
 
 	transferIntentKey := types.GetPendingTransferIntentKeyById(intentId)
 	transferIntentValue := k.cdc.MustMarshal(&transferIntent)
 
-	store.Set(transferIntentKey, transferIntentValue)
+	kvStore.Set(transferIntentKey, transferIntentValue)
 }
 
 func (k Keeper) GetTransferIntent(ctx sdk.Context, intentId uint64) (*types.TransferIntent, error) {
-	store := ctx.KVStore(k.storeKey)
+	kvStore := ctx.KVStore(k.storeKey)
 
 	transferIntentKey := types.GetPendingTransferIntentKeyById(intentId)
-	if !store.Has(transferIntentKey) {
+	if !kvStore.Has(transferIntentKey) {
 		return nil, types.ErrInvalidIntentId
 	}
 
-	transferIntentBz := store.Get(transferIntentKey)
+	transferIntentBz := kvStore.Get(transferIntentKey)
 	var transferIntent types.TransferIntent
 	if err := k.cdc.Unmarshal(transferIntentBz, &transferIntent); err != nil {
 		return nil, err
@@ -101,7 +102,7 @@ func (k Keeper) GetTransferIntent(ctx sdk.Context, intentId uint64) (*types.Tran
 }
 
 func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferIntentProof) error {
-	store := ctx.KVStore(k.storeKey)
+	kvStore := ctx.KVStore(k.storeKey)
 
 	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
 	if err != nil {
@@ -117,57 +118,74 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	if err := rlp.DecodeBytes(msg.BlockHeader, &blockHeader); err != nil {
 		return err
 	}
-	if err = VerifyReceiptProof(blockHeader, txReceipt, msg.ReceiptProof); err != nil {
+	txReceiptHash, err := getTxReceiptHash(txReceipt)
+	if err != nil {
+		return err
+	}
+	if err = verifyReceiptProof(blockHeader, txReceiptHash, msg.ReceiptProof); err != nil {
 		return fmt.Errorf("verify receipt proof: %v", err)
 	}
 
 	clientId := transferIntent.ClientId
-	clientState, err := k.GetClientState(ctx, clientId)
+	clientState, err := k.getClientState(ctx, clientId)
 	if err != nil {
 		return err
 	}
-	if err := VerifyBeaconBlockBody(clientState, msg.BeaconBlockBody, txReceipt); err != nil {
+	if err := verifyBeaconBlockBody(clientState, msg.BeaconBlockBody, txReceipt); err != nil {
 		return fmt.Errorf("verify beacon block body: %v", err)
 	}
 
-	if err := VerifyTransferEvent(txReceipt, *transferIntent, string(msg.ReceiptSignature)); err != nil {
+	solverPublicKey, err := crypto.DecompressPubkey(msg.PublicKey)
+	if err != nil {
+		return fmt.Errorf("decompress public key: %v", err)
+	}
+
+	if err := verifyReceiptSignature(solverPublicKey, txReceiptHash, txReceipt.BlockHash, msg.ReceiptSignature); err != nil {
+		return fmt.Errorf("verify receipt signature: %v", err)
+	}
+
+	if err := verifyTransferEvent(txReceipt, *transferIntent, solverPublicKey); err != nil {
 		return fmt.Errorf("verify transfer event: %v", err)
 	}
 
-	if err := VerifyReceiptUniqueness(store, txReceipt); err != nil {
+	if err := verifyReceiptUniqueness(kvStore, txReceiptHash, txReceipt.BlockHash); err != nil {
 		return fmt.Errorf("verify receipt uniqueness: %v", err)
 	}
 
-	// TODO: verify solver signature
-
 	// Purge resolved transfer intent after proof verification?
-	store.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
+	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
 	// TODO: unlock bounty for solver?
 
 	return nil
 }
 
-func VerifyReceiptProof(blockHeader gethtypes.Header, txReceipt gethtypes.Receipt, receiptProofBz []byte) error {
+func verifyReceiptSignature(solverPublicKey *ecdsa.PublicKey, txReceiptHash []byte, blockHash common.Hash, receiptSig []byte) error {
+	encPublicKey := crypto.FromECDSAPub(solverPublicKey)
+	receiptDataHash := crypto.Keccak256(append(txReceiptHash, blockHash.Bytes()...))
+
+	// Remove the recovery id from the receipt signature before verifying
+	if !crypto.VerifySignature(encPublicKey, receiptDataHash, receiptSig[:64]) {
+		return types.ErrInvalidReceiptSignature
+	}
+	return nil
+}
+
+func verifyReceiptProof(blockHeader gethtypes.Header, txReceiptHash []byte, receiptProofBz []byte) error {
 	var receiptProof types.ReceiptProof
 	if err := receiptProof.Unmarshal(receiptProofBz); err != nil {
 		return err
 	}
 
-	txReceiptHash, err := GetTxReceiptHash(txReceipt)
-	if err != nil {
-		return err
-	}
-
 	receiptsRoot := blockHeader.ReceiptHash
-	if _, err = trie.VerifyProof(receiptsRoot, txReceiptHash, receiptProof); err != nil {
+	if _, err := trie.VerifyProof(receiptsRoot, txReceiptHash, receiptProof); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func GetTxReceiptHash(txReceipt gethtypes.Receipt) ([]byte, error) {
+func getTxReceiptHash(txReceipt gethtypes.Receipt) ([]byte, error) {
 	//Get binary representation of txReceipt rlp encoding
 	txReceiptBz, err := txReceipt.MarshalBinary()
 	if err != nil {
@@ -177,13 +195,8 @@ func GetTxReceiptHash(txReceipt gethtypes.Receipt) ([]byte, error) {
 	return txReceiptHash, nil
 }
 
-func VerifyReceiptUniqueness(store store.KVStore, txReceipt gethtypes.Receipt) error {
-	txReceiptHash, err := GetTxReceiptHash(txReceipt)
-	if err != nil {
-		return err
-	}
-
-	receiptKey := types.GetUsedReceiptKey(txReceiptHash, txReceipt.BlockHash)
+func verifyReceiptUniqueness(store store.KVStore, txReceiptHash []byte, blockHash common.Hash) error {
+	receiptKey := types.GetUsedReceiptKey(txReceiptHash, blockHash)
 	if store.Has(receiptKey) {
 		return types.ErrReceiptAlreadyProcessed
 	}
@@ -192,7 +205,7 @@ func VerifyReceiptUniqueness(store store.KVStore, txReceipt gethtypes.Receipt) e
 	return nil
 }
 
-func VerifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ []byte, txReceipt gethtypes.Receipt) error {
+func verifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ []byte, txReceipt gethtypes.Receipt) error {
 	clientStateBz, err := proto.Marshal(clientState)
 	if err != nil {
 		return fmt.Errorf("marshal client state: %v", err)
@@ -228,7 +241,7 @@ func VerifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ [
 	return nil
 }
 
-func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverAddress string) error {
+func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverPublicKey *ecdsa.PublicKey) error {
 	//TODO: find external package to import instead of using new struct
 	type LogTransfer struct {
 		From   common.Address
@@ -255,6 +268,7 @@ func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 	if transferEvent.To != common.HexToAddress(intent.DestinationAddress) {
 		return types.ErrDestinationAddressMismatch
 	}
+	solverAddress := crypto.PubkeyToAddress(*solverPublicKey).Hex()
 	if transferEvent.From != common.HexToAddress(solverAddress) {
 		return types.ErrSourceAddressMismatch
 	}
@@ -265,7 +279,7 @@ func VerifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 	return nil
 }
 
-func (k Keeper) ValidateClientState(ctx sdk.Context, clientId string) error {
+func (k Keeper) validateClientState(ctx sdk.Context, clientId string) error {
 	_, found := k.clientKeeper.GetClientState(ctx, clientId)
 	if !found {
 		return types.ErrClientNotFound
@@ -280,7 +294,7 @@ func (k Keeper) ValidateClientState(ctx sdk.Context, clientId string) error {
 	return nil
 }
 
-func (k Keeper) GetClientState(ctx sdk.Context, clientId string) (ibccore.ClientState, error) {
+func (k Keeper) getClientState(ctx sdk.Context, clientId string) (ibccore.ClientState, error) {
 	clientState, found := k.clientKeeper.GetClientState(ctx, clientId)
 	if !found {
 		return nil, types.ErrClientNotFound

@@ -22,5 +22,6 @@ var (
 	ErrSourceAddressMismatch      = errorsmod.Register(ModuleName, 13, "source address mismatch")
 	ErrAmountMismatch             = errorsmod.Register(ModuleName, 14, "amount mismatch")
 
-	ErrReceiptAlreadyProcessed = errorsmod.Register(ModuleName, 15, "receipt already processed")
+	ErrInvalidReceiptSignature = errorsmod.Register(ModuleName, 15, "invalid receipt signature")
+	ErrReceiptAlreadyProcessed = errorsmod.Register(ModuleName, 16, "receipt already processed")
 )
