@@ -161,14 +161,14 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		return fmt.Errorf("verify receipt uniqueness: %v", err)
 	}
 
-	// Purge resolved transfer intent after proof verification?
-	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
-
 	accAddress, err := sdk.AccAddressFromBech32(msg.Signer)
 	coins := sdk.NewCoins(transferIntent.Bounty)
 	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, accAddress, coins); err != nil {
 		return fmt.Errorf("unlock bounty for solver: %v", err)
 	}
+
+	// Purge resolved transfer intent after proof verification
+	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
 	return nil
 }
