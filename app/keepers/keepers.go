@@ -357,8 +357,10 @@ func (appKeepers *AppKeepers) InitNormalKeepers(
 	appKeepers.XCvmKeeper = xcvmkeeper.NewKeeper(
 		appCodec,
 		appKeepers.keys[xcvmtypes.StoreKey],
-		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 		appKeepers.IBCKeeper.ClientKeeper,
+		appKeepers.BankKeeper,
+		appKeepers.AccountKeeper,
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
 	transferIBCModule := transfer.NewIBCModule(appKeepers.TransferKeeper)
