@@ -1,6 +1,7 @@
 package keeper_test
 
 import (
+	"crypto/ecdsa"
 	"encoding/binary"
 	"github.com/cosmos/cosmos-sdk/types/address"
 	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
@@ -116,8 +117,14 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	solverAddress := accounts[1]
 
 	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
-	const solverEthAddress string = "0x02DB85F48Ffcf5F5Ea1fCF078eb5ABf468e53fAb"
 	const blockHash string = "0x3f07a9c83155594c000642e7d60e8a8a00038d03e9849171a05ed0e2d47acbb3"
+
+	solverPrivateKey, err := crypto.GenerateKey()
+	suite.Require().NoError(err)
+	publicKey, ok := solverPrivateKey.Public().(*ecdsa.PublicKey)
+	suite.Require().True(ok)
+	solverEthAddress := crypto.PubkeyToAddress(*publicKey).Hex()
+	publicKeyCompressed := crypto.CompressPubkey(publicKey)
 
 	// construct beacon block body and header to use for the light client state
 	beaconBlockBody := &prysmtypes.BeaconBlockBody{
@@ -202,12 +209,18 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	blockHeaderBz, err := rlp.EncodeToBytes(blockHeader)
 	suite.Require().NoError(err)
 
+	receiptData := append(txReceiptHash, common.FromHex(blockHash)...)
+	receiptDataHash := crypto.Keccak256(receiptData)
+	receiptSignature, err := crypto.Sign(receiptDataHash, solverPrivateKey)
+	suite.Require().NoError(err)
+
 	// create Msg to verify intent execution proof
 	msgVerifyTransferIntentProof := types.MsgVerifyTransferIntentProof{
 		Signer:           solverAddress.String(),
 		IntentId:         intentId,
 		TxReceipt:        txReceiptBz,
-		ReceiptSignature: []byte(solverEthAddress),
+		ReceiptSignature: receiptSignature,
+		PublicKey:        publicKeyCompressed,
 		BlockHeader:      blockHeaderBz,
 		ReceiptProof:     receiptProofBz,
 		BeaconBlockBody:  beaconBlockBodyBz,

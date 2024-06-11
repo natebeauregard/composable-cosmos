@@ -52,14 +52,16 @@ message MsgVerifyTransferIntentProof {
     uint64 intentId = 2;
     // the transaction receipt containing the transfer intent execution.
     bytes txReceipt = 3;
-    // the signature of the receipt hash containing the transfer intent execution.
+    // the signature of the receipt hash and block hash containing the transfer intent execution.
     bytes receiptSignature = 4;
+    // the public key of the solver executing the transfer intent.
+    bytes publicKey = 5;
     // the block header of the block containing the transfer intent execution.
-    bytes blockHeader = 5;
+    bytes blockHeader = 6;
     // the proof of the receipt in the block.
-    bytes receiptProof = 6;
+    bytes receiptProof = 7;
     // the body of the beacon block containing the transfer intent execution.
-    bytes beaconBlockBody = 7;
+    bytes beaconBlockBody = 8;
 }
 
 // MsgVerifyTransferIntentProofResponse is the response type for the Msg/MsgVerifyTransferIntentProof RPC method.
