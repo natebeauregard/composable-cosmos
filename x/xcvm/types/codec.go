@@ -17,6 +17,7 @@ func RegisterInterfaces(registry types.InterfaceRegistry) {
 		(*sdk.Msg)(nil),
 		&MsgSendTransferIntent{},
 		&MsgVerifyTransferIntentProof{},
+		&MsgTriggerTransferIntentTimeout{},
 	)
 	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)
 }

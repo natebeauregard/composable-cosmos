@@ -17,6 +17,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	_ "google.golang.org/protobuf/types/known/timestamppb"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -40,11 +41,13 @@ type MsgSendTransferIntent struct {
 	// The destination EVM chain address for the transfer intent.
 	DestinationAddress string `protobuf:"bytes,2,opt,name=destination_address,json=destinationAddress,proto3" json:"destination_address,omitempty"`
 	// The IBC light client ID for the EVM chain to execute the transfer intent on.
-	ClientId string `protobuf:"bytes,3,opt,name=clientId,proto3" json:"clientId,omitempty"`
+	ClientId string `protobuf:"bytes,3,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	// The block height timeout for the transfer intent. The transfer intent can be released and the bounty can be returned to the sender after this height.
+	TimeoutHeight int64 `protobuf:"varint,4,opt,name=timeout_height,json=timeoutHeight,proto3" json:"timeout_height,omitempty"`
 	// The amount of tokens to transfer.
 	// TODO: The coin denom (or alternatively cosmos-sdk/types.Coin) will be added to support non-native tokens in a future commit
-	Amount cosmossdk_io_math.Uint                  `protobuf:"bytes,4,opt,name=amount,proto3,customtype=cosmossdk.io/math.Uint" json:"amount"`
-	Bounty github_com_cosmos_cosmos_sdk_types.Coin `protobuf:"bytes,5,opt,name=bounty,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Coin" json:"bounty"`
+	Amount cosmossdk_io_math.Uint                  `protobuf:"bytes,5,opt,name=amount,proto3,customtype=cosmossdk.io/math.Uint" json:"amount"`
+	Bounty github_com_cosmos_cosmos_sdk_types.Coin `protobuf:"bytes,6,opt,name=bounty,proto3,customtype=github.com/cosmos/cosmos-sdk/types.Coin" json:"bounty"`
 }
 
 func (m *MsgSendTransferIntent) Reset()         { *m = MsgSendTransferIntent{} }
@@ -101,6 +104,13 @@ func (m *MsgSendTransferIntent) GetClientId() string {
 	return ""
 }
 
+func (m *MsgSendTransferIntent) GetTimeoutHeight() int64 {
+	if m != nil {
+		return m.TimeoutHeight
+	}
+	return 0
+}
+
 // MsgSendTransferIntentResponse is the response type for the Msg/SendTransferIntent RPC method.
 type MsgSendTransferIntentResponse struct {
 }
@@ -144,19 +154,19 @@ type MsgVerifyTransferIntentProof struct {
 	// The signer address of the transfer intent proof to verify.
 	Signer string `protobuf:"bytes,1,opt,name=signer,proto3" json:"signer,omitempty"`
 	// Unique id of the intent to verify the proof for
-	IntentId uint64 `protobuf:"varint,2,opt,name=intentId,proto3" json:"intentId,omitempty"`
+	IntentId uint64 `protobuf:"varint,2,opt,name=intent_id,json=intentId,proto3" json:"intent_id,omitempty"`
 	// the transaction receipt containing the transfer intent execution.
-	TxReceipt []byte `protobuf:"bytes,3,opt,name=txReceipt,proto3" json:"txReceipt,omitempty"`
+	TxReceipt []byte `protobuf:"bytes,3,opt,name=tx_receipt,json=txReceipt,proto3" json:"tx_receipt,omitempty"`
 	// the signature of the receipt hash and block hash containing the transfer intent execution.
-	ReceiptSignature []byte `protobuf:"bytes,4,opt,name=receiptSignature,proto3" json:"receiptSignature,omitempty"`
+	ReceiptSignature []byte `protobuf:"bytes,4,opt,name=receipt_signature,json=receiptSignature,proto3" json:"receipt_signature,omitempty"`
 	// the public key of the solver executing the transfer intent.
-	PublicKey []byte `protobuf:"bytes,5,opt,name=publicKey,proto3" json:"publicKey,omitempty"`
+	PublicKey []byte `protobuf:"bytes,5,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	// the block header of the block containing the transfer intent execution.
-	BlockHeader []byte `protobuf:"bytes,6,opt,name=blockHeader,proto3" json:"blockHeader,omitempty"`
+	BlockHeader []byte `protobuf:"bytes,6,opt,name=block_header,json=blockHeader,proto3" json:"block_header,omitempty"`
 	// the proof of the receipt in the block.
-	ReceiptProof []byte `protobuf:"bytes,7,opt,name=receiptProof,proto3" json:"receiptProof,omitempty"`
+	ReceiptProof []byte `protobuf:"bytes,7,opt,name=receipt_proof,json=receiptProof,proto3" json:"receipt_proof,omitempty"`
 	// the body of the beacon block containing the transfer intent execution.
-	BeaconBlockBody []byte `protobuf:"bytes,8,opt,name=beaconBlockBody,proto3" json:"beaconBlockBody,omitempty"`
+	BeaconBlockBody []byte `protobuf:"bytes,8,opt,name=beacon_block_body,json=beaconBlockBody,proto3" json:"beacon_block_body,omitempty"`
 }
 
 func (m *MsgVerifyTransferIntentProof) Reset()         { *m = MsgVerifyTransferIntentProof{} }
@@ -285,54 +295,158 @@ func (m *MsgVerifyTransferIntentProofResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MsgVerifyTransferIntentProofResponse proto.InternalMessageInfo
 
+// MsgTriggerTransferIntentTimeout represents a message to remove a transfer intent and release the posted bounty to the sender.
+type MsgTriggerTransferIntentTimeout struct {
+	// The sender address of the transfer intent to remove.
+	Sender string `protobuf:"bytes,1,opt,name=sender,proto3" json:"sender,omitempty"`
+	// Unique id of the intent to verify the proof for
+	IntentId uint64 `protobuf:"varint,2,opt,name=intent_id,json=intentId,proto3" json:"intent_id,omitempty"`
+}
+
+func (m *MsgTriggerTransferIntentTimeout) Reset()         { *m = MsgTriggerTransferIntentTimeout{} }
+func (m *MsgTriggerTransferIntentTimeout) String() string { return proto.CompactTextString(m) }
+func (*MsgTriggerTransferIntentTimeout) ProtoMessage()    {}
+func (*MsgTriggerTransferIntentTimeout) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6d0c0bfb695dacb5, []int{4}
+}
+func (m *MsgTriggerTransferIntentTimeout) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MsgTriggerTransferIntentTimeout) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MsgTriggerTransferIntentTimeout.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MsgTriggerTransferIntentTimeout) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MsgTriggerTransferIntentTimeout.Merge(m, src)
+}
+func (m *MsgTriggerTransferIntentTimeout) XXX_Size() int {
+	return m.Size()
+}
+func (m *MsgTriggerTransferIntentTimeout) XXX_DiscardUnknown() {
+	xxx_messageInfo_MsgTriggerTransferIntentTimeout.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MsgTriggerTransferIntentTimeout proto.InternalMessageInfo
+
+func (m *MsgTriggerTransferIntentTimeout) GetSender() string {
+	if m != nil {
+		return m.Sender
+	}
+	return ""
+}
+
+func (m *MsgTriggerTransferIntentTimeout) GetIntentId() uint64 {
+	if m != nil {
+		return m.IntentId
+	}
+	return 0
+}
+
+// MsgTriggerTransferIntentTimeoutResponse is the response type for the Msg/MsgTriggerTransferIntentTimeout RPC method.
+type MsgTriggerTransferIntentTimeoutResponse struct {
+}
+
+func (m *MsgTriggerTransferIntentTimeoutResponse) Reset() {
+	*m = MsgTriggerTransferIntentTimeoutResponse{}
+}
+func (m *MsgTriggerTransferIntentTimeoutResponse) String() string { return proto.CompactTextString(m) }
+func (*MsgTriggerTransferIntentTimeoutResponse) ProtoMessage()    {}
+func (*MsgTriggerTransferIntentTimeoutResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6d0c0bfb695dacb5, []int{5}
+}
+func (m *MsgTriggerTransferIntentTimeoutResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *MsgTriggerTransferIntentTimeoutResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_MsgTriggerTransferIntentTimeoutResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *MsgTriggerTransferIntentTimeoutResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MsgTriggerTransferIntentTimeoutResponse.Merge(m, src)
+}
+func (m *MsgTriggerTransferIntentTimeoutResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *MsgTriggerTransferIntentTimeoutResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_MsgTriggerTransferIntentTimeoutResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_MsgTriggerTransferIntentTimeoutResponse proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterType((*MsgSendTransferIntent)(nil), "composable.xcvm.v1beta1.MsgSendTransferIntent")
 	proto.RegisterType((*MsgSendTransferIntentResponse)(nil), "composable.xcvm.v1beta1.MsgSendTransferIntentResponse")
 	proto.RegisterType((*MsgVerifyTransferIntentProof)(nil), "composable.xcvm.v1beta1.MsgVerifyTransferIntentProof")
 	proto.RegisterType((*MsgVerifyTransferIntentProofResponse)(nil), "composable.xcvm.v1beta1.MsgVerifyTransferIntentProofResponse")
+	proto.RegisterType((*MsgTriggerTransferIntentTimeout)(nil), "composable.xcvm.v1beta1.MsgTriggerTransferIntentTimeout")
+	proto.RegisterType((*MsgTriggerTransferIntentTimeoutResponse)(nil), "composable.xcvm.v1beta1.MsgTriggerTransferIntentTimeoutResponse")
 }
 
 func init() { proto.RegisterFile("composable/xcvm/v1beta1/tx.proto", fileDescriptor_6d0c0bfb695dacb5) }
 
 var fileDescriptor_6d0c0bfb695dacb5 = []byte{
-	// 590 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x94, 0x4f, 0x6f, 0xd3, 0x30,
-	0x18, 0xc6, 0x9b, 0x6e, 0x2b, 0x9b, 0x17, 0x09, 0x66, 0x60, 0xcb, 0xa2, 0x91, 0x8d, 0x6a, 0x1a,
-	0x53, 0x25, 0x12, 0x15, 0xc4, 0x0e, 0x93, 0x38, 0x50, 0x0e, 0x50, 0xa1, 0x4a, 0x28, 0x03, 0x0e,
-	0x5c, 0xa6, 0xfc, 0x71, 0x33, 0xab, 0x8d, 0x1d, 0xd9, 0x6e, 0xd5, 0x4a, 0x1c, 0x10, 0x9f, 0x00,
-	0xce, 0x48, 0x7c, 0x86, 0xdd, 0xf8, 0x0a, 0x3b, 0xee, 0x88, 0x38, 0x4c, 0xa8, 0x3d, 0xec, 0x6b,
-	0xa0, 0xd8, 0x6e, 0xbb, 0x42, 0x3b, 0x09, 0x2e, 0xb5, 0xdf, 0xe7, 0xfd, 0xbd, 0x6f, 0xed, 0xc7,
-	0x76, 0xc0, 0x4e, 0x44, 0xd3, 0x8c, 0xf2, 0x20, 0x6c, 0x23, 0xaf, 0x17, 0x75, 0x53, 0xaf, 0x5b,
-	0x0d, 0x91, 0x08, 0xaa, 0x9e, 0xe8, 0xb9, 0x19, 0xa3, 0x82, 0xc2, 0x8d, 0x09, 0xe1, 0xe6, 0x84,
-	0xab, 0x09, 0x7b, 0x2d, 0x48, 0x31, 0xa1, 0x9e, 0xfc, 0x55, 0xac, 0xbd, 0x3b, 0xaf, 0x1b, 0x26,
-	0x02, 0x11, 0xa1, 0xa9, 0x8d, 0x88, 0xf2, 0x94, 0x72, 0x2f, 0xe5, 0x89, 0xd7, 0xad, 0xe6, 0x83,
-	0x4e, 0x6c, 0xaa, 0xc4, 0xb1, 0x8c, 0x3c, 0x15, 0xe8, 0xd4, 0x9d, 0x84, 0x26, 0x54, 0xe9, 0xf9,
-	0x4c, 0xa9, 0xe5, 0xaf, 0x45, 0x70, 0xb7, 0xc1, 0x93, 0x23, 0x44, 0xe2, 0x37, 0x2c, 0x20, 0xbc,
-	0x89, 0x58, 0x5d, 0xfe, 0x13, 0xbc, 0x0f, 0xcc, 0x26, 0xa3, 0xe9, 0x71, 0x10, 0xc7, 0x0c, 0x71,
-	0x6e, 0x19, 0x3b, 0xc6, 0xfe, 0x8a, 0xbf, 0x9a, 0x6b, 0xcf, 0x94, 0x04, 0x3d, 0x70, 0x3b, 0x46,
-	0x5c, 0x60, 0x12, 0x08, 0x4c, 0xc9, 0x98, 0x2c, 0x4a, 0x12, 0x5e, 0x49, 0x8d, 0x0a, 0x6c, 0xb0,
-	0x1c, 0xb5, 0x31, 0x22, 0xa2, 0x1e, 0x5b, 0x0b, 0x92, 0x1a, 0xc7, 0xf0, 0x00, 0x94, 0x82, 0x94,
-	0x76, 0x88, 0xb0, 0x16, 0xf3, 0x4c, 0xcd, 0x39, 0xbb, 0xd8, 0x2e, 0xfc, 0xbc, 0xd8, 0x5e, 0x57,
-	0xbb, 0xe0, 0x71, 0xcb, 0xc5, 0xd4, 0x4b, 0x03, 0x71, 0xe2, 0xbe, 0xc5, 0x44, 0xf8, 0x9a, 0x86,
-	0x2f, 0x40, 0x29, 0xcc, 0x27, 0x7d, 0x6b, 0x49, 0xd6, 0x79, 0xba, 0xee, 0x41, 0x82, 0xc5, 0x49,
-	0x27, 0x74, 0x23, 0x9a, 0x6a, 0x23, 0xf4, 0xf0, 0x90, 0xc7, 0x2d, 0x4f, 0xf4, 0x33, 0xc4, 0xdd,
-	0xe7, 0x14, 0x13, 0x5f, 0x97, 0x1f, 0xae, 0x7d, 0xba, 0x3c, 0xad, 0x4c, 0xed, 0xb9, 0xbc, 0x0d,
-	0xee, 0xcd, 0x34, 0xc7, 0x47, 0x3c, 0xa3, 0x84, 0xa3, 0xf2, 0xf7, 0x22, 0xd8, 0x6a, 0xf0, 0xe4,
-	0x1d, 0x62, 0xb8, 0xd9, 0x9f, 0x66, 0x5e, 0x33, 0x4a, 0x9b, 0x70, 0x1d, 0x94, 0x38, 0x4e, 0x08,
-	0x62, 0xda, 0x3f, 0x1d, 0xe5, 0x4e, 0xa8, 0x13, 0xad, 0xc7, 0xd2, 0xaf, 0x45, 0x7f, 0x1c, 0xc3,
-	0x2d, 0xb0, 0x22, 0x7a, 0x3e, 0x8a, 0x10, 0xce, 0x84, 0xb4, 0xc9, 0xf4, 0x27, 0x02, 0xac, 0x80,
-	0x5b, 0x4c, 0x4d, 0x8f, 0x70, 0x42, 0x02, 0xd1, 0x61, 0x48, 0x3a, 0x66, 0xfa, 0x7f, 0xe9, 0x79,
-	0xa7, 0xac, 0x13, 0xb6, 0x71, 0xf4, 0x0a, 0x29, 0x7b, 0x4c, 0x7f, 0x22, 0xc0, 0x1d, 0xb0, 0x1a,
-	0xb6, 0x69, 0xd4, 0x7a, 0x89, 0x82, 0x18, 0x31, 0xab, 0x24, 0xf3, 0x57, 0x25, 0x58, 0x06, 0xa6,
-	0xee, 0x29, 0x77, 0x63, 0xdd, 0x90, 0xc8, 0x94, 0x06, 0xf7, 0xc1, 0xcd, 0x10, 0x05, 0x11, 0x25,
-	0xb5, 0xbc, 0xb0, 0x46, 0xe3, 0xbe, 0xb5, 0x2c, 0xb1, 0x3f, 0xe5, 0xc3, 0xd5, 0xdc, 0x60, 0x6d,
-	0x40, 0x79, 0x0f, 0xec, 0x5e, 0x67, 0xdc, 0xc8, 0xe1, 0x47, 0xdf, 0x8a, 0x60, 0xa1, 0xc1, 0x13,
-	0xf8, 0x01, 0xc0, 0x19, 0x97, 0xd4, 0x75, 0xe7, 0xbc, 0x2d, 0x77, 0xe6, 0xb9, 0xd9, 0x07, 0xff,
-	0xc6, 0x8f, 0x56, 0x01, 0xbf, 0x18, 0x60, 0x73, 0xfe, 0x21, 0x3f, 0xb9, 0xae, 0xeb, 0xdc, 0x32,
-	0xfb, 0xe9, 0x7f, 0x95, 0x8d, 0xd6, 0x64, 0x2f, 0x7d, 0xbc, 0x3c, 0xad, 0x18, 0xb5, 0xbd, 0xb3,
-	0x81, 0x63, 0x9c, 0x0f, 0x1c, 0xe3, 0xd7, 0xc0, 0x31, 0x3e, 0x0f, 0x9d, 0xc2, 0xf9, 0xd0, 0x29,
-	0xfc, 0x18, 0x3a, 0x85, 0xf7, 0x66, 0x4f, 0x7d, 0x42, 0xe4, 0x5d, 0x0f, 0x4b, 0xf2, 0xc1, 0x3f,
-	0xfe, 0x1d, 0x00, 0x00, 0xff, 0xff, 0xb1, 0xc6, 0xf5, 0x55, 0xb0, 0x04, 0x00, 0x00,
+	// 720 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x94, 0xcf, 0x4f, 0x13, 0x4d,
+	0x18, 0xc7, 0xbb, 0x14, 0xfa, 0xd2, 0xa1, 0xbc, 0xef, 0xdb, 0x51, 0xa1, 0x54, 0x68, 0xb1, 0x22,
+	0x20, 0xc6, 0xdd, 0xa0, 0x91, 0x18, 0x12, 0x13, 0xad, 0x07, 0x21, 0xa6, 0x89, 0x59, 0xd0, 0x83,
+	0x97, 0xcd, 0xfe, 0x98, 0x4e, 0x27, 0xed, 0xce, 0x6c, 0x76, 0xa6, 0xa4, 0x4d, 0x3c, 0x18, 0xff,
+	0x02, 0xbd, 0xfa, 0x57, 0x70, 0xf7, 0xe0, 0xc1, 0x0b, 0x47, 0x8e, 0xc6, 0x03, 0x31, 0x70, 0xe0,
+	0xdf, 0x30, 0xf3, 0xa3, 0x08, 0x09, 0xad, 0x91, 0x4b, 0x77, 0x9f, 0xef, 0xf3, 0x7d, 0x9e, 0x7d,
+	0xf6, 0xd3, 0x67, 0x07, 0x2c, 0x86, 0x2c, 0x4e, 0x18, 0xf7, 0x83, 0x0e, 0x72, 0x7a, 0xe1, 0x5e,
+	0xec, 0xec, 0xad, 0x07, 0x48, 0xf8, 0xeb, 0x8e, 0xe8, 0xd9, 0x49, 0xca, 0x04, 0x83, 0xb3, 0xbf,
+	0x1d, 0xb6, 0x74, 0xd8, 0xc6, 0x51, 0x2e, 0xfa, 0x31, 0xa1, 0xcc, 0x51, 0xbf, 0xda, 0x5b, 0x5e,
+	0x1a, 0xd6, 0x8d, 0x50, 0x81, 0xa8, 0x30, 0xae, 0xd9, 0x90, 0xf1, 0x98, 0x71, 0x27, 0xe6, 0xd8,
+	0xd9, 0x5b, 0x97, 0x17, 0x93, 0x98, 0xd3, 0x09, 0x4f, 0x45, 0x8e, 0x0e, 0x4c, 0xea, 0x3a, 0x66,
+	0x98, 0x69, 0x5d, 0xde, 0x19, 0xb5, 0x8a, 0x19, 0xc3, 0x1d, 0xe4, 0xa8, 0x28, 0xe8, 0x36, 0x1d,
+	0x41, 0x62, 0xc4, 0x85, 0x1f, 0x27, 0xda, 0x50, 0xfb, 0x36, 0x06, 0x6e, 0x34, 0x38, 0xde, 0x41,
+	0x34, 0xda, 0x4d, 0x7d, 0xca, 0x9b, 0x28, 0xdd, 0x56, 0xa3, 0xc0, 0x5b, 0xa0, 0xd0, 0x4c, 0x59,
+	0xec, 0xf9, 0x51, 0x94, 0x22, 0xce, 0x4b, 0xd6, 0xa2, 0xb5, 0x9a, 0x77, 0xa7, 0xa4, 0xf6, 0x4c,
+	0x4b, 0xd0, 0x01, 0xd7, 0x22, 0xc4, 0x05, 0xa1, 0xbe, 0x20, 0x8c, 0x9e, 0x39, 0xc7, 0x94, 0x13,
+	0x9e, 0x4b, 0x0d, 0x0a, 0x6e, 0x82, 0x7c, 0xd8, 0x21, 0x88, 0x0a, 0x8f, 0x44, 0xa5, 0xac, 0xb2,
+	0x4d, 0x6a, 0x61, 0x3b, 0x82, 0x77, 0xc0, 0xbf, 0x72, 0x3a, 0xd6, 0x15, 0x5e, 0x0b, 0x11, 0xdc,
+	0x12, 0xa5, 0xf1, 0x45, 0x6b, 0x35, 0xeb, 0x4e, 0x1b, 0x75, 0x4b, 0x89, 0x70, 0x03, 0xe4, 0xfc,
+	0x98, 0x75, 0xa9, 0x28, 0x4d, 0xc8, 0x06, 0xf5, 0xca, 0xc1, 0x51, 0x35, 0xf3, 0xe3, 0xa8, 0x3a,
+	0xa3, 0x71, 0xf0, 0xa8, 0x6d, 0x13, 0xe6, 0xc4, 0xbe, 0x68, 0xd9, 0xaf, 0x09, 0x15, 0xae, 0x71,
+	0xc3, 0x17, 0x20, 0x17, 0xc8, 0x9b, 0x7e, 0x29, 0xa7, 0xea, 0x1c, 0x53, 0xb7, 0x82, 0x89, 0x68,
+	0x75, 0x03, 0x3b, 0x64, 0xb1, 0x21, 0x6a, 0x2e, 0xf7, 0x79, 0xd4, 0x76, 0x44, 0x3f, 0x41, 0xdc,
+	0x7e, 0xce, 0x08, 0x75, 0x4d, 0xf9, 0x66, 0xf1, 0xc3, 0xe9, 0xfe, 0xda, 0x05, 0x36, 0xb5, 0x2a,
+	0x58, 0xb8, 0x14, 0xa2, 0x8b, 0x78, 0xc2, 0x28, 0x47, 0xb5, 0xaf, 0x63, 0x60, 0xbe, 0xc1, 0xf1,
+	0x1b, 0x94, 0x92, 0x66, 0xff, 0xa2, 0xe7, 0x55, 0xca, 0x58, 0x13, 0xce, 0x80, 0x1c, 0x27, 0x98,
+	0xa2, 0xd4, 0x70, 0x36, 0x91, 0x24, 0xa6, 0x57, 0x43, 0x12, 0x93, 0x60, 0xc7, 0xdd, 0x49, 0x2d,
+	0x6c, 0x47, 0x70, 0x01, 0x00, 0xd1, 0xf3, 0x52, 0x14, 0x22, 0x92, 0x08, 0xc5, 0xb3, 0xe0, 0xe6,
+	0x45, 0xcf, 0xd5, 0x02, 0xbc, 0x07, 0x8a, 0x26, 0xe7, 0xc9, 0x6e, 0xbe, 0xe8, 0xa6, 0x48, 0x31,
+	0x2d, 0xb8, 0xff, 0x9b, 0xc4, 0xce, 0x40, 0x97, 0xbd, 0x92, 0x6e, 0xd0, 0x21, 0xa1, 0xd7, 0x46,
+	0x7d, 0x85, 0xb6, 0xe0, 0xe6, 0xb5, 0xf2, 0x12, 0xf5, 0xe5, 0x36, 0x04, 0x1d, 0x16, 0xb6, 0xbd,
+	0x16, 0xf2, 0x23, 0x94, 0x2a, 0x86, 0x05, 0x77, 0x4a, 0x69, 0x5b, 0x4a, 0x82, 0xb7, 0xc1, 0xf4,
+	0xe0, 0x71, 0x89, 0x7c, 0xa7, 0xd2, 0x3f, 0xca, 0x53, 0x30, 0xa2, 0x7e, 0xcf, 0x35, 0x50, 0x0c,
+	0x90, 0x1f, 0x32, 0xea, 0xe9, 0x76, 0x01, 0x8b, 0xfa, 0xa5, 0x49, 0x65, 0xfc, 0x4f, 0x27, 0xea,
+	0x52, 0xaf, 0xb3, 0xa8, 0xbf, 0x39, 0x25, 0x41, 0x1b, 0x10, 0xb5, 0x65, 0xb0, 0x34, 0x0a, 0xe0,
+	0x19, 0xe9, 0x10, 0x54, 0x1b, 0x1c, 0xef, 0xa6, 0x04, 0x63, 0x94, 0x5e, 0x34, 0xee, 0xea, 0x3d,
+	0x52, 0xac, 0x11, 0x8d, 0xce, 0xb1, 0x56, 0xd1, 0x48, 0xd6, 0x83, 0x61, 0x94, 0xb3, 0x76, 0x17,
+	0xac, 0xfc, 0xe1, 0x21, 0x83, 0x79, 0x1e, 0x7c, 0xc9, 0x82, 0x6c, 0x83, 0x63, 0xf8, 0x0e, 0xc0,
+	0x4b, 0x3e, 0x32, 0xdb, 0x1e, 0x72, 0x78, 0xd8, 0x97, 0xee, 0x53, 0x79, 0xe3, 0xef, 0xfc, 0x83,
+	0x29, 0xe0, 0x27, 0x0b, 0xcc, 0x0d, 0x5f, 0xbe, 0x47, 0xa3, 0xba, 0x0e, 0x2d, 0x2b, 0x3f, 0xb9,
+	0x52, 0xd9, 0xd9, 0x4c, 0x9f, 0x2d, 0x30, 0x3f, 0xf2, 0x7f, 0x7a, 0x3c, 0xaa, 0xff, 0xa8, 0xca,
+	0xf2, 0xd3, 0xab, 0x56, 0x0e, 0x86, 0x2b, 0x4f, 0xbc, 0x3f, 0xdd, 0x5f, 0xb3, 0xea, 0xcb, 0x07,
+	0xc7, 0x15, 0xeb, 0xf0, 0xb8, 0x62, 0xfd, 0x3c, 0xae, 0x58, 0x1f, 0x4f, 0x2a, 0x99, 0xc3, 0x93,
+	0x4a, 0xe6, 0xfb, 0x49, 0x25, 0xf3, 0xb6, 0xd0, 0xd3, 0x07, 0xb8, 0x3a, 0x20, 0x82, 0x9c, 0x3a,
+	0x4d, 0x1f, 0xfe, 0x0a, 0x00, 0x00, 0xff, 0xff, 0x31, 0xf4, 0x1d, 0x8b, 0x2e, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -349,6 +463,7 @@ const _ = grpc.SupportPackageIsVersion4
 type MsgClient interface {
 	SendTransferIntent(ctx context.Context, in *MsgSendTransferIntent, opts ...grpc.CallOption) (*MsgSendTransferIntentResponse, error)
 	VerifyTransferIntentProof(ctx context.Context, in *MsgVerifyTransferIntentProof, opts ...grpc.CallOption) (*MsgVerifyTransferIntentProofResponse, error)
+	TriggerTransferIntentTimeout(ctx context.Context, in *MsgTriggerTransferIntentTimeout, opts ...grpc.CallOption) (*MsgTriggerTransferIntentTimeoutResponse, error)
 }
 
 type msgClient struct {
@@ -377,10 +492,20 @@ func (c *msgClient) VerifyTransferIntentProof(ctx context.Context, in *MsgVerify
 	return out, nil
 }
 
+func (c *msgClient) TriggerTransferIntentTimeout(ctx context.Context, in *MsgTriggerTransferIntentTimeout, opts ...grpc.CallOption) (*MsgTriggerTransferIntentTimeoutResponse, error) {
+	out := new(MsgTriggerTransferIntentTimeoutResponse)
+	err := c.cc.Invoke(ctx, "/composable.xcvm.v1beta1.Msg/TriggerTransferIntentTimeout", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MsgServer is the server API for Msg service.
 type MsgServer interface {
 	SendTransferIntent(context.Context, *MsgSendTransferIntent) (*MsgSendTransferIntentResponse, error)
 	VerifyTransferIntentProof(context.Context, *MsgVerifyTransferIntentProof) (*MsgVerifyTransferIntentProofResponse, error)
+	TriggerTransferIntentTimeout(context.Context, *MsgTriggerTransferIntentTimeout) (*MsgTriggerTransferIntentTimeoutResponse, error)
 }
 
 // UnimplementedMsgServer can be embedded to have forward compatible implementations.
@@ -392,6 +517,9 @@ func (*UnimplementedMsgServer) SendTransferIntent(ctx context.Context, req *MsgS
 }
 func (*UnimplementedMsgServer) VerifyTransferIntentProof(ctx context.Context, req *MsgVerifyTransferIntentProof) (*MsgVerifyTransferIntentProofResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyTransferIntentProof not implemented")
+}
+func (*UnimplementedMsgServer) TriggerTransferIntentTimeout(ctx context.Context, req *MsgTriggerTransferIntentTimeout) (*MsgTriggerTransferIntentTimeoutResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TriggerTransferIntentTimeout not implemented")
 }
 
 func RegisterMsgServer(s grpc1.Server, srv MsgServer) {
@@ -434,6 +562,24 @@ func _Msg_VerifyTransferIntentProof_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Msg_TriggerTransferIntentTimeout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgTriggerTransferIntentTimeout)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).TriggerTransferIntentTimeout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/composable.xcvm.v1beta1.Msg/TriggerTransferIntentTimeout",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).TriggerTransferIntentTimeout(ctx, req.(*MsgTriggerTransferIntentTimeout))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Msg_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "composable.xcvm.v1beta1.Msg",
 	HandlerType: (*MsgServer)(nil),
@@ -445,6 +591,10 @@ var _Msg_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyTransferIntentProof",
 			Handler:    _Msg_VerifyTransferIntentProof_Handler,
+		},
+		{
+			MethodName: "TriggerTransferIntentTimeout",
+			Handler:    _Msg_TriggerTransferIntentTimeout_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -480,7 +630,7 @@ func (m *MsgSendTransferIntent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i = encodeVarintTx(dAtA, i, uint64(size))
 	}
 	i--
-	dAtA[i] = 0x2a
+	dAtA[i] = 0x32
 	{
 		size := m.Amount.Size()
 		i -= size
@@ -490,7 +640,12 @@ func (m *MsgSendTransferIntent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i = encodeVarintTx(dAtA, i, uint64(size))
 	}
 	i--
-	dAtA[i] = 0x22
+	dAtA[i] = 0x2a
+	if m.TimeoutHeight != 0 {
+		i = encodeVarintTx(dAtA, i, uint64(m.TimeoutHeight))
+		i--
+		dAtA[i] = 0x20
+	}
 	if len(m.ClientId) > 0 {
 		i -= len(m.ClientId)
 		copy(dAtA[i:], m.ClientId)
@@ -638,6 +793,64 @@ func (m *MsgVerifyTransferIntentProofResponse) MarshalToSizedBuffer(dAtA []byte)
 	return len(dAtA) - i, nil
 }
 
+func (m *MsgTriggerTransferIntentTimeout) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MsgTriggerTransferIntentTimeout) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MsgTriggerTransferIntentTimeout) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.IntentId != 0 {
+		i = encodeVarintTx(dAtA, i, uint64(m.IntentId))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.Sender) > 0 {
+		i -= len(m.Sender)
+		copy(dAtA[i:], m.Sender)
+		i = encodeVarintTx(dAtA, i, uint64(len(m.Sender)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *MsgTriggerTransferIntentTimeoutResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *MsgTriggerTransferIntentTimeoutResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *MsgTriggerTransferIntentTimeoutResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintTx(dAtA []byte, offset int, v uint64) int {
 	offset -= sovTx(v)
 	base := offset
@@ -666,6 +879,9 @@ func (m *MsgSendTransferIntent) Size() (n int) {
 	l = len(m.ClientId)
 	if l > 0 {
 		n += 1 + l + sovTx(uint64(l))
+	}
+	if m.TimeoutHeight != 0 {
+		n += 1 + sovTx(uint64(m.TimeoutHeight))
 	}
 	l = m.Amount.Size()
 	n += 1 + l + sovTx(uint64(l))
@@ -724,6 +940,31 @@ func (m *MsgVerifyTransferIntentProof) Size() (n int) {
 }
 
 func (m *MsgVerifyTransferIntentProofResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *MsgTriggerTransferIntentTimeout) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Sender)
+	if l > 0 {
+		n += 1 + l + sovTx(uint64(l))
+	}
+	if m.IntentId != 0 {
+		n += 1 + sovTx(uint64(m.IntentId))
+	}
+	return n
+}
+
+func (m *MsgTriggerTransferIntentTimeoutResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -864,6 +1105,25 @@ func (m *MsgSendTransferIntent) Unmarshal(dAtA []byte) error {
 			m.ClientId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TimeoutHeight", wireType)
+			}
+			m.TimeoutHeight = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTx
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TimeoutHeight |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Amount", wireType)
 			}
@@ -897,7 +1157,7 @@ func (m *MsgSendTransferIntent) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 5:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Bounty", wireType)
 			}
@@ -1334,6 +1594,157 @@ func (m *MsgVerifyTransferIntentProofResponse) Unmarshal(dAtA []byte) error {
 		}
 		if fieldNum <= 0 {
 			return fmt.Errorf("proto: MsgVerifyTransferIntentProofResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTx(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTx
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MsgTriggerTransferIntentTimeout) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTx
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MsgTriggerTransferIntentTimeout: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MsgTriggerTransferIntentTimeout: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Sender", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTx
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthTx
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTx
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Sender = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IntentId", wireType)
+			}
+			m.IntentId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTx
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.IntentId |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTx(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTx
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *MsgTriggerTransferIntentTimeoutResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTx
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MsgTriggerTransferIntentTimeoutResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MsgTriggerTransferIntentTimeoutResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:

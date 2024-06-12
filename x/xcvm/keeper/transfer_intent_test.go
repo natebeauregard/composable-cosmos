@@ -67,12 +67,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
 
 	ethClientState := &types.ClientState{}
-	ethClientStateBz, err := ethClientState.Marshal()
-	suite.Require().NoError(err)
-	clientState := wasmtypes.NewClientState(ethClientStateBz, suite.wasmCodeId, clienttypes.NewHeight(0, 0))
-	consensusState := &wasmtypes.ConsensusState{}
-	ethClientId, err := suite.app.IBCKeeper.ClientKeeper.CreateClient(suite.ctx, clientState, consensusState)
-	suite.Require().NoError(err)
+	ethClientId := createTestClient(suite, ethClientState)
 
 	const bountyDenom = "stake"
 	bountyAmount := sdk.NewInt(1000)
@@ -83,10 +78,11 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		FromAddress:        userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
+		TimeoutHeight:      suite.ctx.BlockHeight() + 100,
 		Amount:             sdk.NewUint(tokenAmount),
 		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
-	_, err = suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
+	_, err := suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
 	suite.Require().NoError(err)
 
 	// Verify the transfer intent is stored properly in the store
@@ -96,6 +92,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		SourceAddress:      msgSendTransferIntent.FromAddress,
 		DestinationAddress: msgSendTransferIntent.DestinationAddress,
 		Amount:             msgSendTransferIntent.Amount,
+		TimeoutHeight:      msgSendTransferIntent.TimeoutHeight,
 		ClientId:           msgSendTransferIntent.ClientId,
 		Bounty:             msgSendTransferIntent.Bounty,
 	}
@@ -109,6 +106,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		sdk.NewAttribute(types.AttributeKeyClientId, transferIntent.ClientId),
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
+		sdk.NewAttribute(types.AttributeKeyTimeout, strconv.FormatInt(transferIntent.TimeoutHeight, 10)),
 		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
 		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	)
@@ -171,14 +169,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 			},
 		},
 	}
-	ethClientStateBz, err := ethClientState.Marshal()
-	suite.Require().NoError(err)
-
-	// create the client with a specified client state and consensus state
-	clientState := wasmtypes.NewClientState(ethClientStateBz, suite.wasmCodeId, clienttypes.NewHeight(0, 0))
-	consensusState := &wasmtypes.ConsensusState{}
-	ethClientId, err := suite.app.IBCKeeper.ClientKeeper.CreateClient(suite.ctx, clientState, consensusState)
-	suite.Require().NoError(err)
+	ethClientId := createTestClient(suite, ethClientState)
 
 	// Add transfer intent to the XCVM module store
 	const intentId uint64 = 0
@@ -263,4 +254,90 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	// Assert that transfer intent is purged from the store after being executed
 	_, err = suite.app.XCvmKeeper.GetTransferIntent(suite.ctx, intentId)
 	suite.Require().Error(err)
+}
+
+// Unit test for sending transfer intents
+func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
+	suite.SetupTest()
+
+	// generate user account
+	startingUserBalance := sdk.NewInt(10000000)
+	accounts := app.AddTestAddrs(suite.app, suite.ctx, 2, startingUserBalance)
+	userAddress := accounts[0]
+	otherAddress := accounts[1]
+
+	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
+
+	ethClientState := &types.ClientState{}
+	ethClientId := createTestClient(suite, ethClientState)
+
+	const bountyDenom = "stake"
+	bountyAmount := sdk.NewInt(1000)
+
+	// Send transfer intent message from user
+	const tokenAmount uint64 = 10000
+	const intentBlockDuration int64 = 100
+	msgSendTransferIntent := types.MsgSendTransferIntent{
+		FromAddress:        userAddress.String(),
+		DestinationAddress: destinationEthAddress,
+		ClientId:           ethClientId,
+		TimeoutHeight:      suite.ctx.BlockHeight() + intentBlockDuration,
+		Amount:             sdk.NewUint(tokenAmount),
+		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
+	}
+	_, err := suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
+	suite.Require().NoError(err)
+
+	// Verify that the bounty was deducted from the user's account and is stored in the XCVM module account
+	moduleBalance := suite.app.BankKeeper.GetBalance(suite.ctx, suite.moduleAddr, bountyDenom)
+	suite.Require().Equal(bountyAmount, moduleBalance.Amount)
+	userBalance := suite.app.BankKeeper.GetBalance(suite.ctx, userAddress, bountyDenom)
+	suite.Require().Equal(startingUserBalance.Sub(bountyAmount), userBalance.Amount)
+
+	const intentId uint64 = 0
+	msgTriggerTransferIntentTimeout := types.MsgTriggerTransferIntentTimeout{
+		Sender:   userAddress.String(),
+		IntentId: intentId,
+	}
+
+	// Trigger the transfer intent timeout prematurely
+	_, err = suite.app.XCvmKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
+	suite.Require().ErrorContains(err, types.ErrPrematureTimeoutTrigger.Error())
+
+	// Let the desired amount of time pass
+	suite.ctx = suite.ctx.WithBlockHeight(suite.ctx.BlockHeight() + intentBlockDuration)
+
+	// Trigger the transfer intent timeout with a different user
+	msgTriggerTransferIntentTimeout.Sender = otherAddress.String()
+	_, err = suite.app.XCvmKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
+	suite.Require().ErrorContains(err, types.ErrInvalidSenderAddress.Error())
+
+	// Trigger the transfer intent timeout after the desired time has passed
+	msgTriggerTransferIntentTimeout.Sender = userAddress.String()
+	_, err = suite.app.XCvmKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
+	suite.Require().NoError(err)
+
+	// Verify that the bounty was transferred back to the user's account and deducted from the module's account
+	moduleBalance = suite.app.BankKeeper.GetBalance(suite.ctx, suite.moduleAddr, bountyDenom)
+	suite.Require().Equal(sdk.NewInt(0), moduleBalance.Amount)
+	userBalance = suite.app.BankKeeper.GetBalance(suite.ctx, userAddress, bountyDenom)
+	suite.Require().Equal(startingUserBalance, userBalance.Amount)
+
+	// Assert that transfer intent is purged from the store after being executed
+	_, err = suite.app.XCvmKeeper.GetTransferIntent(suite.ctx, intentId)
+	suite.Require().Error(err)
+}
+
+// Creates a test client with the provided Ethereum client state and returns the created client's ID
+func createTestClient(suite *TransferIntentTestSuite, ethClientState *types.ClientState) string {
+	ethClientStateBz, err := ethClientState.Marshal()
+	suite.Require().NoError(err)
+
+	clientState := wasmtypes.NewClientState(ethClientStateBz, suite.wasmCodeId, clienttypes.NewHeight(0, 0))
+	consensusState := &wasmtypes.ConsensusState{}
+
+	ethClientId, err := suite.app.IBCKeeper.ClientKeeper.CreateClient(suite.ctx, clientState, consensusState)
+	suite.Require().NoError(err)
+
+	return ethClientId
 }

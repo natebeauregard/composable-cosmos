@@ -32,6 +32,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		ClientId:           clientId,
 		SourceAddress:      msg.FromAddress,
 		DestinationAddress: msg.DestinationAddress,
+		TimeoutHeight:      msg.TimeoutHeight,
 		Amount:             msg.Amount,
 		Bounty:             msg.Bounty,
 	}
@@ -53,6 +54,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		sdk.NewAttribute(types.AttributeKeyClientId, transferIntent.ClientId),
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
+		sdk.NewAttribute(types.AttributeKeyTimeout, strconv.FormatInt(transferIntent.TimeoutHeight, 10)),
 		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
 		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	))
@@ -118,6 +120,10 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		return err
 	}
 
+	if err := verifyBlockHeight(ctx, transferIntent.TimeoutHeight); err != nil {
+		return fmt.Errorf("verify block height: %v", err)
+	}
+
 	var txReceipt gethtypes.Receipt
 	if err := txReceipt.UnmarshalJSON(msg.TxReceipt); err != nil {
 		return types.ErrInvalidTxReceipt
@@ -162,6 +168,9 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	}
 
 	accAddress, err := sdk.AccAddressFromBech32(msg.Signer)
+	if err != nil {
+		return fmt.Errorf("acc address conversion: %v", err)
+	}
 	coins := sdk.NewCoins(transferIntent.Bounty)
 	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, accAddress, coins); err != nil {
 		return fmt.Errorf("unlock bounty for solver: %v", err)
@@ -170,6 +179,46 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	// Purge resolved transfer intent after proof verification
 	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
+	return nil
+}
+
+func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgTriggerTransferIntentTimeout) error {
+	kvStore := ctx.KVStore(k.storeKey)
+
+	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
+	if err != nil {
+		return fmt.Errorf("get transfer intent: %v", err)
+	}
+
+	if msg.Sender != transferIntent.SourceAddress {
+		return types.ErrInvalidSenderAddress
+	}
+
+	if err := verifyBlockHeight(ctx, transferIntent.TimeoutHeight); err != nil {
+		return fmt.Errorf("verify block height: %v", err)
+	}
+
+	accAddress, err := sdk.AccAddressFromBech32(msg.Sender)
+	if err != nil {
+		return fmt.Errorf("acc address conversion: %v", err)
+	}
+	coins := sdk.NewCoins(transferIntent.Bounty)
+
+	// Release bounty to original sender
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, accAddress, coins); err != nil {
+		return fmt.Errorf("release unclaimed bounty to original sender: %v", err)
+	}
+
+	// Remove transfer intent from store
+	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
+
+	return nil
+}
+
+func verifyBlockHeight(ctx sdk.Context, timeoutHeight int64) error {
+	if ctx.BlockHeight() < timeoutHeight {
+		return types.ErrPrematureTimeoutTrigger
+	}
 	return nil
 }
 

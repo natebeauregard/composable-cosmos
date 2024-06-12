@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	TypeMsgSendTransferIntent        = "send_transfer_intent"
-	TypeMsgVerifyTransferIntentProof = "verify_transfer_intent_proof"
+	TypeMsgSendTransferIntent           = "send_transfer_intent"
+	TypeMsgVerifyTransferIntentProof    = "verify_transfer_intent_proof"
+	TypeMsgTriggerTransferIntentTimeout = "trigger_transfer_intent_timeout"
 )
 
 var _ sdk.Msg = &MsgSendTransferIntent{}
@@ -59,6 +60,27 @@ func (msg *MsgVerifyTransferIntentProof) ValidateBasic() error {
 	// validate signer
 	if _, err := sdk.AccAddressFromBech32(msg.Signer); err != nil {
 		return errorsmod.Wrap(err, "invalid signer address")
+	}
+
+	return nil
+}
+
+var _ sdk.Msg = &MsgTriggerTransferIntentTimeout{}
+
+// Type Implements Msg.
+func (MsgTriggerTransferIntentTimeout) Type() string { return TypeMsgTriggerTransferIntentTimeout }
+
+// GetSigners returns the expected signers for a MsgVerifyTransferIntentProof message.
+func (msg *MsgTriggerTransferIntentTimeout) GetSigners() []sdk.AccAddress {
+	addr, _ := sdk.AccAddressFromBech32(msg.Sender)
+	return []sdk.AccAddress{addr}
+}
+
+// ValidateBasic does a sanity check on the provided data.
+func (msg *MsgTriggerTransferIntentTimeout) ValidateBasic() error {
+	// validate signer
+	if _, err := sdk.AccAddressFromBech32(msg.Sender); err != nil {
+		return errorsmod.Wrap(err, "invalid sender address")
 	}
 
 	return nil

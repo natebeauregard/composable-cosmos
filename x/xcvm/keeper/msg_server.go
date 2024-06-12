@@ -50,3 +50,14 @@ func (k Keeper) VerifyTransferIntentProof(goCtx context.Context, msg *types.MsgV
 
 	return &types.MsgVerifyTransferIntentProofResponse{}, nil
 }
+
+func (k Keeper) TriggerTransferIntentTimeout(goCtx context.Context, msg *types.MsgTriggerTransferIntentTimeout) (*types.MsgTriggerTransferIntentTimeoutResponse, error) {
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	err := k.TriggerEthTransferIntentTimeout(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.MsgTriggerTransferIntentTimeoutResponse{}, nil
+}
