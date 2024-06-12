@@ -3,6 +3,7 @@ package composable.xcvm.v1beta1;
 
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "x/xcvm/types";
 
@@ -10,11 +11,15 @@ message TransferIntent {
   string source_address = 1;
   string destination_address = 2;
   string client_id = 3;
-  string amount = 4 [
+  google.protobuf.Timestamp timeout = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  string amount = 5 [
     (gogoproto.customtype) = "cosmossdk.io/math.Uint",
     (gogoproto.nullable) = false
   ];
-  string bounty = 5 [
+  string bounty = 6 [
     (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Coin",
     (gogoproto.nullable) = false
   ];

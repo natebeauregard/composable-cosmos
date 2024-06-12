@@ -32,6 +32,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		ClientId:           clientId,
 		SourceAddress:      msg.FromAddress,
 		DestinationAddress: msg.DestinationAddress,
+		Timeout:            msg.Timeout,
 		Amount:             msg.Amount,
 		Bounty:             msg.Bounty,
 	}
@@ -53,6 +54,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		sdk.NewAttribute(types.AttributeKeyClientId, transferIntent.ClientId),
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
+		sdk.NewAttribute(types.AttributeKeyTimeout, transferIntent.Timeout.String()),
 		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
 		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	))
@@ -162,12 +164,48 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	}
 
 	accAddress, err := sdk.AccAddressFromBech32(msg.Signer)
+	if err != nil {
+		return fmt.Errorf("acc address conversion: %v", err)
+	}
 	coins := sdk.NewCoins(transferIntent.Bounty)
 	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, accAddress, coins); err != nil {
 		return fmt.Errorf("unlock bounty for solver: %v", err)
 	}
 
 	// Purge resolved transfer intent after proof verification
+	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
+
+	return nil
+}
+
+func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgTriggerTransferIntentTimeout) error {
+	kvStore := ctx.KVStore(k.storeKey)
+
+	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
+	if err != nil {
+		return fmt.Errorf("get transfer intent: %v", err)
+	}
+
+	if msg.Sender != transferIntent.SourceAddress {
+		return types.ErrInvalidSenderAddress
+	}
+
+	if ctx.BlockTime().Before(transferIntent.Timeout) {
+		return types.ErrPrematureTimeoutTrigger
+	}
+
+	accAddress, err := sdk.AccAddressFromBech32(msg.Sender)
+	if err != nil {
+		return fmt.Errorf("acc address conversion: %v", err)
+	}
+	coins := sdk.NewCoins(transferIntent.Bounty)
+
+	// Release bounty to original sender
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, accAddress, coins); err != nil {
+		return fmt.Errorf("release unclaimed bounty to original sender: %v", err)
+	}
+
+	// Remove transfer intent from store
 	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
 	return nil

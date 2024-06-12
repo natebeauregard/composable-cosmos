@@ -24,4 +24,7 @@ var (
 
 	ErrInvalidReceiptSignature = errorsmod.Register(ModuleName, 15, "invalid receipt signature")
 	ErrReceiptAlreadyProcessed = errorsmod.Register(ModuleName, 16, "receipt already processed")
+
+	ErrInvalidSenderAddress    = errorsmod.Register(ModuleName, 17, "invalid sender address")
+	ErrPrematureTimeoutTrigger = errorsmod.Register(ModuleName, 18, "timeout must be triggered after current block time")
 )
