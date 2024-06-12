@@ -33,7 +33,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		SourceAddress:      msg.FromAddress,
 		DestinationAddress: msg.DestinationAddress,
 		TimeoutHeight:      msg.TimeoutHeight,
-		Amount:             msg.Amount,
+		TransferTokens:     msg.TransferTokens,
 		Bounty:             msg.Bounty,
 	}
 	k.AddTransferIntent(ctx, transferIntent, intentId)
@@ -55,7 +55,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
 		sdk.NewAttribute(types.AttributeKeyTimeout, strconv.FormatInt(transferIntent.TimeoutHeight, 10)),
-		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
+		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.TransferTokens.String()),
 		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	))
 
@@ -306,10 +306,10 @@ func verifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ [
 func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverPublicKey *ecdsa.PublicKey) error {
 	//TODO: find external package to import instead of using new struct
 	type LogTransfer struct {
-		From   common.Address
-		To     common.Address
-		Tokens *big.Int
-		//TokenAddress common.Address
+		From         common.Address
+		To           common.Address
+		Tokens       *big.Int
+		TokenAddress common.Address
 	}
 	transferEventSig := []byte("Transfer(address,address,uint256)")
 	transferEventSigHash := crypto.Keccak256Hash(transferEventSig)
@@ -320,12 +320,16 @@ func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 			transferEvent.From = common.HexToAddress(log.Topics[1].Hex())
 			transferEvent.To = common.HexToAddress(log.Topics[2].Hex())
 			transferEvent.Tokens = new(big.Int).SetBytes(log.Data)
+			transferEvent.TokenAddress = log.Address
 			break
 		}
 	}
 
 	if transferEvent == (LogTransfer{}) {
 		return types.ErrTransferEventNotFound
+	}
+	if transferEvent.TokenAddress != common.HexToAddress(intent.TransferTokens.Erc20Address) {
+		return types.ErrTokenAddressMismatch
 	}
 	if transferEvent.To != common.HexToAddress(intent.DestinationAddress) {
 		return types.ErrDestinationAddressMismatch
@@ -334,7 +338,7 @@ func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 	if transferEvent.From != common.HexToAddress(solverAddress) {
 		return types.ErrSourceAddressMismatch
 	}
-	if transferEvent.Tokens.Cmp(intent.Amount.BigInt()) != 0 {
+	if transferEvent.Tokens.Cmp(intent.TransferTokens.Amount.BigInt()) != 0 {
 		return types.ErrAmountMismatch
 	}
 

@@ -65,21 +65,27 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 	userAddress := app.AddTestAddrs(suite.app, suite.ctx, 1, startingUserBalance)[0]
 
 	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
+	const tokenAddress string = "0x1f9090aaE28b8a3dCeaDf281B0F12828e676c326"
 
 	ethClientState := &types.ClientState{}
 	ethClientId := createTestClient(suite, ethClientState)
+
+	const tokenAmount uint64 = 10000
+	tokens := types.TransferTokens{
+		Erc20Address: tokenAddress,
+		Amount:       sdk.NewUint(tokenAmount),
+	}
 
 	const bountyDenom = "stake"
 	bountyAmount := sdk.NewInt(1000)
 
 	// Send transfer intent message from user
-	const tokenAmount uint64 = 10000
 	msgSendTransferIntent := types.MsgSendTransferIntent{
 		FromAddress:        userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
 		TimeoutHeight:      suite.ctx.BlockHeight() + 100,
-		Amount:             sdk.NewUint(tokenAmount),
+		TransferTokens:     &tokens,
 		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
 	_, err := suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
@@ -91,7 +97,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 	expectedTransferIntent := types.TransferIntent{
 		SourceAddress:      msgSendTransferIntent.FromAddress,
 		DestinationAddress: msgSendTransferIntent.DestinationAddress,
-		Amount:             msgSendTransferIntent.Amount,
+		TransferTokens:     msgSendTransferIntent.TransferTokens,
 		TimeoutHeight:      msgSendTransferIntent.TimeoutHeight,
 		ClientId:           msgSendTransferIntent.ClientId,
 		Bounty:             msgSendTransferIntent.Bounty,
@@ -107,7 +113,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
 		sdk.NewAttribute(types.AttributeKeyTimeout, strconv.FormatInt(transferIntent.TimeoutHeight, 10)),
-		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
+		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.TransferTokens.String()),
 		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	)
 	events := suite.ctx.EventManager().Events()
@@ -138,6 +144,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	suite.Require().NoError(err)
 
 	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
+	const tokenAddress string = "0x1f9090aaE28b8a3dCeaDf281B0F12828e676c326"
 	const blockHash string = "0x3f07a9c83155594c000642e7d60e8a8a00038d03e9849171a05ed0e2d47acbb3"
 
 	solverPrivateKey, err := crypto.GenerateKey()
@@ -171,14 +178,19 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	}
 	ethClientId := createTestClient(suite, ethClientState)
 
+	const tokenAmount uint64 = 10000
+	tokens := types.TransferTokens{
+		Erc20Address: tokenAddress,
+		Amount:       sdk.NewUint(tokenAmount),
+	}
+
 	// Add transfer intent to the XCVM module store
 	const intentId uint64 = 0
-	const tokenAmount uint64 = 10000
 	transferIntent := types.TransferIntent{
 		SourceAddress:      userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
-		Amount:             sdk.NewUint(tokenAmount),
+		TransferTokens:     &tokens,
 		Bounty:             bounty,
 	}
 	suite.app.XCvmKeeper.AddTransferIntent(suite.ctx, transferIntent, intentId)
@@ -188,6 +200,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	binary.BigEndian.PutUint64(tokenAmountBz, tokenAmount)
 	logs := []*gethtypes.Log{
 		{
+			Address: common.HexToAddress(tokenAddress),
 			Topics: []common.Hash{
 				crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)")),
 				common.HexToHash(solverEthAddress),
@@ -275,14 +288,13 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 	bountyAmount := sdk.NewInt(1000)
 
 	// Send transfer intent message from user
-	const tokenAmount uint64 = 10000
 	const intentBlockDuration int64 = 100
 	msgSendTransferIntent := types.MsgSendTransferIntent{
 		FromAddress:        userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
 		TimeoutHeight:      suite.ctx.BlockHeight() + intentBlockDuration,
-		Amount:             sdk.NewUint(tokenAmount),
+		TransferTokens:     &types.TransferTokens{},
 		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
 	_, err := suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)

@@ -18,13 +18,14 @@ var (
 	ErrBlockBodyMismatch = errorsmod.Register(ModuleName, 10, "block body mismatch")
 
 	ErrTransferEventNotFound      = errorsmod.Register(ModuleName, 11, "transfer event not found")
-	ErrDestinationAddressMismatch = errorsmod.Register(ModuleName, 12, "destination address mismatch")
-	ErrSourceAddressMismatch      = errorsmod.Register(ModuleName, 13, "source address mismatch")
-	ErrAmountMismatch             = errorsmod.Register(ModuleName, 14, "amount mismatch")
+	ErrTokenAddressMismatch       = errorsmod.Register(ModuleName, 12, "token address mismatch")
+	ErrDestinationAddressMismatch = errorsmod.Register(ModuleName, 13, "destination address mismatch")
+	ErrSourceAddressMismatch      = errorsmod.Register(ModuleName, 14, "source address mismatch")
+	ErrAmountMismatch             = errorsmod.Register(ModuleName, 15, "amount mismatch")
 
-	ErrInvalidReceiptSignature = errorsmod.Register(ModuleName, 15, "invalid receipt signature")
-	ErrReceiptAlreadyProcessed = errorsmod.Register(ModuleName, 16, "receipt already processed")
+	ErrInvalidReceiptSignature = errorsmod.Register(ModuleName, 16, "invalid receipt signature")
+	ErrReceiptAlreadyProcessed = errorsmod.Register(ModuleName, 17, "receipt already processed")
 
-	ErrInvalidSenderAddress    = errorsmod.Register(ModuleName, 17, "invalid sender address")
-	ErrPrematureTimeoutTrigger = errorsmod.Register(ModuleName, 18, "timeout must be triggered after current block time")
+	ErrInvalidSenderAddress    = errorsmod.Register(ModuleName, 18, "invalid sender address")
+	ErrPrematureTimeoutTrigger = errorsmod.Register(ModuleName, 19, "timeout must be triggered after current block time")
 )

@@ -36,12 +36,9 @@ message MsgSendTransferIntent {
     string client_id = 3;
     // The block height timeout for the transfer intent. The transfer intent can be released and the bounty can be returned to the sender after this height.
     int64 timeout_height = 4;
-    // The amount of tokens to transfer.
-    // TODO: The coin denom (or alternatively cosmos-sdk/types.Coin) will be added to support non-native tokens in a future commit
-    string amount = 5 [
-        (gogoproto.customtype) = "cosmossdk.io/math.Uint",
-        (gogoproto.nullable) = false
-    ];
+    // The tokens to transfer to the destination address.
+    TransferTokens transfer_tokens = 5;
+    // The bounty to post for incentivizing solvers to execute the transfer intent.
     string bounty = 6 [
         (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Coin",
         (gogoproto.nullable) = false
