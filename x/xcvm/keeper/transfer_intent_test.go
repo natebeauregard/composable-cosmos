@@ -74,12 +74,11 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 
 	// Send transfer intent message from user
 	const tokenAmount uint64 = 10000
-	const timeout = time.Hour * 24
 	msgSendTransferIntent := types.MsgSendTransferIntent{
 		FromAddress:        userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
-		Timeout:            suite.ctx.BlockTime().Add(timeout),
+		TimeoutHeight:      suite.ctx.BlockHeight() + 100,
 		Amount:             sdk.NewUint(tokenAmount),
 		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
@@ -93,7 +92,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		SourceAddress:      msgSendTransferIntent.FromAddress,
 		DestinationAddress: msgSendTransferIntent.DestinationAddress,
 		Amount:             msgSendTransferIntent.Amount,
-		Timeout:            msgSendTransferIntent.Timeout,
+		TimeoutHeight:      msgSendTransferIntent.TimeoutHeight,
 		ClientId:           msgSendTransferIntent.ClientId,
 		Bounty:             msgSendTransferIntent.Bounty,
 	}
@@ -107,7 +106,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		sdk.NewAttribute(types.AttributeKeyClientId, transferIntent.ClientId),
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
-		sdk.NewAttribute(types.AttributeKeyTimeout, transferIntent.Timeout.String()),
+		sdk.NewAttribute(types.AttributeKeyTimeout, strconv.FormatInt(transferIntent.TimeoutHeight, 10)),
 		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
 		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	)
@@ -277,12 +276,12 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 
 	// Send transfer intent message from user
 	const tokenAmount uint64 = 10000
-	const timeout = time.Hour * 24
+	const intentBlockDuration int64 = 100
 	msgSendTransferIntent := types.MsgSendTransferIntent{
 		FromAddress:        userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
-		Timeout:            suite.ctx.BlockTime().Add(timeout),
+		TimeoutHeight:      suite.ctx.BlockHeight() + intentBlockDuration,
 		Amount:             sdk.NewUint(tokenAmount),
 		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
@@ -306,7 +305,7 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 	suite.Require().ErrorContains(err, types.ErrPrematureTimeoutTrigger.Error())
 
 	// Let the desired amount of time pass
-	suite.ctx = suite.ctx.WithBlockTime(suite.ctx.BlockTime().Add(timeout))
+	suite.ctx = suite.ctx.WithBlockHeight(suite.ctx.BlockHeight() + intentBlockDuration)
 
 	// Trigger the transfer intent timeout with a different user
 	msgTriggerTransferIntentTimeout.Sender = otherAddress.String()

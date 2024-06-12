@@ -32,7 +32,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		ClientId:           clientId,
 		SourceAddress:      msg.FromAddress,
 		DestinationAddress: msg.DestinationAddress,
-		Timeout:            msg.Timeout,
+		TimeoutHeight:      msg.TimeoutHeight,
 		Amount:             msg.Amount,
 		Bounty:             msg.Bounty,
 	}
@@ -54,7 +54,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		sdk.NewAttribute(types.AttributeKeyClientId, transferIntent.ClientId),
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
-		sdk.NewAttribute(types.AttributeKeyTimeout, transferIntent.Timeout.String()),
+		sdk.NewAttribute(types.AttributeKeyTimeout, strconv.FormatInt(transferIntent.TimeoutHeight, 10)),
 		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
 		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	))
@@ -118,6 +118,10 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
 	if err != nil {
 		return err
+	}
+
+	if err := verifyBlockHeight(ctx, transferIntent.TimeoutHeight); err != nil {
+		return fmt.Errorf("verify block height: %v", err)
 	}
 
 	var txReceipt gethtypes.Receipt
@@ -190,8 +194,8 @@ func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgT
 		return types.ErrInvalidSenderAddress
 	}
 
-	if ctx.BlockTime().Before(transferIntent.Timeout) {
-		return types.ErrPrematureTimeoutTrigger
+	if err := verifyBlockHeight(ctx, transferIntent.TimeoutHeight); err != nil {
+		return fmt.Errorf("verify block height: %v", err)
 	}
 
 	accAddress, err := sdk.AccAddressFromBech32(msg.Sender)
@@ -208,6 +212,13 @@ func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgT
 	// Remove transfer intent from store
 	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
+	return nil
+}
+
+func verifyBlockHeight(ctx sdk.Context, timeoutHeight int64) error {
+	if ctx.BlockHeight() < timeoutHeight {
+		return types.ErrPrematureTimeoutTrigger
+	}
 	return nil
 }
 

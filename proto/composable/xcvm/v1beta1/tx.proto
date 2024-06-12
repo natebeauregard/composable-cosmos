@@ -34,12 +34,8 @@ message MsgSendTransferIntent {
     string destination_address = 2;
     // The IBC light client ID for the EVM chain to execute the transfer intent on.
     string client_id = 3;
-    // The timeout for the transfer intent. The transfer intent can be released and the bounty can be returned to the sender after this timestamp.
-    // TODO: support block height timeout as well?
-    google.protobuf.Timestamp timeout = 4 [
-        (gogoproto.stdtime) = true,
-        (gogoproto.nullable) = false
-    ];
+    // The block height timeout for the transfer intent. The transfer intent can be released and the bounty can be returned to the sender after this height.
+    int64 timeout_height = 4;
     // The amount of tokens to transfer.
     // TODO: The coin denom (or alternatively cosmos-sdk/types.Coin) will be added to support non-native tokens in a future commit
     string amount = 5 [
