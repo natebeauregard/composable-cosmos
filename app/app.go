@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/notional-labs/composable/v6/x/xcvm"
 	"io"
 	"os"
 	"path/filepath"
@@ -31,6 +32,7 @@ import (
 	transfermiddlewaretypes "github.com/notional-labs/composable/v6/x/transfermiddleware/types"
 	txboundary "github.com/notional-labs/composable/v6/x/tx-boundary"
 	txboundarytypes "github.com/notional-labs/composable/v6/x/tx-boundary/types"
+	xcvmtypes "github.com/notional-labs/composable/v6/x/xcvm/types"
 	"github.com/spf13/cast"
 	alliancemodule "github.com/terra-money/alliance/x/alliance"
 	alliancemoduleclient "github.com/terra-money/alliance/x/alliance/client"
@@ -180,6 +182,7 @@ var (
 		transfermiddleware.AppModuleBasic{},
 		txboundary.AppModuleBasic{},
 		ratelimitmodule.AppModuleBasic{},
+		xcvm.AppModuleBasic{},
 		consensus.AppModuleBasic{},
 		alliancemodule.AppModuleBasic{},
 		// this line is used by starport scaffolding # stargate/app/moduleBasic
@@ -197,6 +200,7 @@ var (
 		transfermiddlewaretypes.ModuleName:  {authtypes.Minter, authtypes.Burner},
 		ibctransfertypes.ModuleName:         {authtypes.Minter, authtypes.Burner},
 		alliancemoduletypes.ModuleName:      {authtypes.Minter, authtypes.Burner},
+		xcvmtypes.ModuleName:                nil,
 		alliancemoduletypes.RewardsPoolName: nil,
 		icatypes.ModuleName:                 nil,
 		wasmtypes.ModuleName:                nil,
@@ -295,6 +299,7 @@ func NewComposableApp(
 	transfermiddlewareModule := transfermiddleware.NewAppModule(&app.TransferMiddlewareKeeper)
 	txBoundaryModule := txboundary.NewAppModule(appCodec, app.TxBoundaryKeepper)
 	ratelimitModule := ratelimitmodule.NewAppModule(&app.RatelimitKeeper)
+	xcvmModule := xcvm.NewAppModule(appCodec, app.XCvmKeeper, app.AccountKeeper)
 	icqModule := icq.NewAppModule(app.ICQKeeper, app.GetSubspace(icqtypes.ModuleName))
 	icaModule := ica.NewAppModule(nil, &app.ICAHostKeeper) // Only ICA Host
 	// ****  Module Options **** //
@@ -338,6 +343,7 @@ func NewComposableApp(
 		txBoundaryModule,
 		icaModule,
 		ratelimitModule,
+		xcvmModule,
 		alliancemodule.NewAppModule(appCodec, app.AllianceKeeper, app.StakingKeeper, app.AccountKeeper, app.BankKeeper, app.interfaceRegistry),
 		// this line is used by starport scaffolding # stargate/app/appModule
 	)
@@ -361,6 +367,7 @@ func NewComposableApp(
 		transfermiddlewaretypes.ModuleName,
 		txboundarytypes.ModuleName,
 		ratelimitmoduletypes.ModuleName,
+		xcvmtypes.ModuleName,
 		ibchookstypes.ModuleName,
 		icqtypes.ModuleName,
 		authtypes.ModuleName,
@@ -403,6 +410,7 @@ func NewComposableApp(
 		transfermiddlewaretypes.ModuleName,
 		txboundarytypes.ModuleName,
 		ratelimitmoduletypes.ModuleName,
+		xcvmtypes.ModuleName,
 		ibchookstypes.ModuleName,
 		ibctransfertypes.ModuleName,
 		icqtypes.ModuleName,
@@ -441,6 +449,7 @@ func NewComposableApp(
 		transfermiddlewaretypes.ModuleName,
 		txboundarytypes.ModuleName,
 		ratelimitmoduletypes.ModuleName,
+		xcvmtypes.ModuleName,
 		ibchookstypes.ModuleName,
 		feegrant.ModuleName,
 		group.ModuleName,

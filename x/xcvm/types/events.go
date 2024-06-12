@@ -10,4 +10,5 @@ const (
 	AttributeKeySourceAddress      = "source-address"
 	AttributeKeyDestinationAddress = "destination-address"
 	AttributeKeyAmount             = "amount"
+	AttributeKeyBounty             = "bounty"
 )

@@ -33,11 +33,19 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		SourceAddress:      msg.FromAddress,
 		DestinationAddress: msg.DestinationAddress,
 		Amount:             msg.Amount,
+		Bounty:             msg.Bounty,
 	}
 	k.AddTransferIntent(ctx, transferIntent, intentId)
 
-	// TODO: post bounty for solver?
-	// TODO: should a collateral amount be set here as well for the solver to deposit before executing the intent?
+	userAddress, err := sdk.AccAddressFromBech32(msg.FromAddress)
+	if err != nil {
+		return fmt.Errorf("acc address conversion: %v", err)
+	}
+	coins := sdk.NewCoins(msg.Bounty)
+
+	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, userAddress, types.ModuleName, coins); err != nil {
+		return fmt.Errorf("send coins from account to module: %v", err)
+	}
 
 	ctx.EventManager().EmitEvent(sdk.NewEvent(
 		types.EventAddTransferIntent,
@@ -46,6 +54,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
 		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
+		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	))
 
 	k.SetNextIntentId(ctx, intentId+1)
@@ -152,10 +161,14 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		return fmt.Errorf("verify receipt uniqueness: %v", err)
 	}
 
-	// Purge resolved transfer intent after proof verification?
-	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
+	accAddress, err := sdk.AccAddressFromBech32(msg.Signer)
+	coins := sdk.NewCoins(transferIntent.Bounty)
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, accAddress, coins); err != nil {
+		return fmt.Errorf("unlock bounty for solver: %v", err)
+	}
 
-	// TODO: unlock bounty for solver?
+	// Purge resolved transfer intent after proof verification
+	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
 	return nil
 }

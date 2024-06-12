@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"fmt"
-
 	"github.com/notional-labs/composable/v6/x/xcvm/types"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -14,9 +13,11 @@ import (
 
 // Keeper struct
 type Keeper struct {
-	cdc          codec.Codec
-	storeKey     storetypes.StoreKey
-	clientKeeper types.ClientKeeper
+	cdc           codec.Codec
+	storeKey      storetypes.StoreKey
+	clientKeeper  types.ClientKeeper
+	bankKeeper    types.BankKeeper
+	accountKeeper types.AccountKeeper
 
 	// the address capable of executing a privileged message. Typically, this
 	// should be the x/gov module account.
@@ -24,12 +25,21 @@ type Keeper struct {
 }
 
 // NewKeeper returns keeper
-func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, authority string, clientKeeper types.ClientKeeper) Keeper {
+func NewKeeper(
+	cdc codec.Codec,
+	storeKey storetypes.StoreKey,
+	clientKeeper types.ClientKeeper,
+	bankKeeper types.BankKeeper,
+	accountKeeper types.AccountKeeper,
+	authority string,
+) Keeper {
 	return Keeper{
-		cdc:          cdc,
-		storeKey:     storeKey,
-		clientKeeper: clientKeeper,
-		authority:    authority,
+		cdc:           cdc,
+		storeKey:      storeKey,
+		clientKeeper:  clientKeeper,
+		bankKeeper:    bankKeeper,
+		accountKeeper: accountKeeper,
+		authority:     authority,
 	}
 }
 

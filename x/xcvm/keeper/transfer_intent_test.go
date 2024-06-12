@@ -32,6 +32,7 @@ type TransferIntentTestSuite struct {
 	ctx        sdk.Context
 	app        *app.ComposableApp
 	wasmCodeId []byte
+	moduleAddr sdk.AccAddress
 }
 
 func (suite *TransferIntentTestSuite) SetupTest() {
@@ -48,6 +49,7 @@ func (suite *TransferIntentTestSuite) SetupTest() {
 	})
 	suite.Require().NoError(err)
 	suite.wasmCodeId = resp.CodeId
+	suite.moduleAddr = suite.app.AccountKeeper.GetModuleAccount(suite.ctx, types.ModuleName).GetAddress()
 }
 
 func TestKeeperTestSuite(t *testing.T) {
@@ -59,7 +61,8 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 	suite.SetupTest()
 
 	// generate user account
-	userAddress := app.AddTestAddrs(suite.app, suite.ctx, 1, sdk.NewInt(10000000))[0]
+	startingUserBalance := sdk.NewInt(10000000)
+	userAddress := app.AddTestAddrs(suite.app, suite.ctx, 1, startingUserBalance)[0]
 
 	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
 
@@ -71,6 +74,9 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 	ethClientId, err := suite.app.IBCKeeper.ClientKeeper.CreateClient(suite.ctx, clientState, consensusState)
 	suite.Require().NoError(err)
 
+	const bountyDenom = "stake"
+	bountyAmount := sdk.NewInt(1000)
+
 	// Send transfer intent message from user
 	const tokenAmount uint64 = 10000
 	msgSendTransferIntent := types.MsgSendTransferIntent{
@@ -78,6 +84,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
 		Amount:             sdk.NewUint(tokenAmount),
+		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
 	_, err = suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
 	suite.Require().NoError(err)
@@ -90,6 +97,7 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		DestinationAddress: msgSendTransferIntent.DestinationAddress,
 		Amount:             msgSendTransferIntent.Amount,
 		ClientId:           msgSendTransferIntent.ClientId,
+		Bounty:             msgSendTransferIntent.Bounty,
 	}
 	suite.Require().NoError(err)
 	suite.Require().Equal(&expectedTransferIntent, transferIntent)
@@ -102,9 +110,16 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 		sdk.NewAttribute(types.AttributeKeySourceAddress, transferIntent.SourceAddress),
 		sdk.NewAttribute(types.AttributeKeyDestinationAddress, transferIntent.DestinationAddress),
 		sdk.NewAttribute(types.AttributeKeyAmount, transferIntent.Amount.String()),
+		sdk.NewAttribute(types.AttributeKeyBounty, transferIntent.Bounty.String()),
 	)
 	events := suite.ctx.EventManager().Events()
 	suite.Require().Equal(expectedTransferIntentEvent, events[len(events)-1])
+
+	// Verify that the bounty was deducted from the user's account and is stored in the XCVM module account
+	moduleBalance := suite.app.BankKeeper.GetBalance(suite.ctx, suite.moduleAddr, bountyDenom)
+	suite.Require().Equal(bountyAmount, moduleBalance.Amount)
+	userBalance := suite.app.BankKeeper.GetBalance(suite.ctx, userAddress, bountyDenom)
+	suite.Require().Equal(startingUserBalance.Sub(bountyAmount), userBalance.Amount)
 }
 
 // Unit test for verifying transfer intent proofs
@@ -112,9 +127,17 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	suite.SetupTest()
 
 	// generate user and solver accounts
-	accounts := app.AddTestAddrs(suite.app, suite.ctx, 2, sdk.NewInt(10000000))
+	startingBaseAccountBalance := sdk.NewInt(10000000)
+	accounts := app.AddTestAddrs(suite.app, suite.ctx, 2, startingBaseAccountBalance)
 	userAddress := accounts[0]
 	solverAddress := accounts[1]
+
+	// setup transfer intent bounty
+	const bountyDenom = "stake"
+	bountyAmount := sdk.NewInt(1000)
+	bounty := sdk.NewCoin(bountyDenom, bountyAmount)
+	err := suite.app.BankKeeper.SendCoinsFromAccountToModule(suite.ctx, userAddress, types.ModuleName, sdk.NewCoins(bounty))
+	suite.Require().NoError(err)
 
 	const destinationEthAddress string = "0xe6D38aEa101B30C7c26e533A7F7Dd22b82D1467d"
 	const blockHash string = "0x3f07a9c83155594c000642e7d60e8a8a00038d03e9849171a05ed0e2d47acbb3"
@@ -165,6 +188,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
 		Amount:             sdk.NewUint(tokenAmount),
+		Bounty:             bounty,
 	}
 	suite.app.XCvmKeeper.AddTransferIntent(suite.ctx, transferIntent, intentId)
 
@@ -229,6 +253,12 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	// Assert intent was verified correctly
 	_, err = suite.app.XCvmKeeper.VerifyTransferIntentProof(suite.ctx, &msgVerifyTransferIntentProof)
 	suite.Require().NoError(err)
+
+	// Verify that the bounty was transferred to the solver's account and deducted from the module's account
+	moduleBalance := suite.app.BankKeeper.GetBalance(suite.ctx, suite.moduleAddr, bountyDenom)
+	suite.Require().Equal(sdk.NewInt(0), moduleBalance.Amount)
+	solverBalance := suite.app.BankKeeper.GetBalance(suite.ctx, solverAddress, bountyDenom)
+	suite.Require().Equal(startingBaseAccountBalance.Add(bountyAmount), solverBalance.Amount)
 
 	// Assert that transfer intent is purged from the store after being executed
 	_, err = suite.app.XCvmKeeper.GetTransferIntent(suite.ctx, intentId)
