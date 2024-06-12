@@ -12,12 +12,19 @@ message TransferIntent {
   string destination_address = 2;
   string client_id = 3;
   int64 timeout_height = 4;
-  string amount = 5 [
-    (gogoproto.customtype) = "cosmossdk.io/math.Uint",
-    (gogoproto.nullable) = false
-  ];
+  TransferTokens transfer_tokens = 5;
   string bounty = 6 [
     (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Coin",
+    (gogoproto.nullable) = false
+  ];
+}
+
+message TransferTokens {
+  // The ERC20 address of the token to transfer
+  string erc20_address = 1;
+  // The amount of tokens to transfer
+  string amount = 2 [
+    (gogoproto.customtype) = "cosmossdk.io/math.Uint",
     (gogoproto.nullable) = false
   ];
 }
