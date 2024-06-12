@@ -19,6 +19,9 @@ service Msg {
 
     rpc VerifyTransferIntentProof(MsgVerifyTransferIntentProof)
       returns (MsgVerifyTransferIntentProofResponse);
+
+    rpc TriggerTransferIntentTimeout(MsgTriggerTransferIntentTimeout)
+        returns (MsgTriggerTransferIntentTimeoutResponse);
 }
 
 // MsgSendTransferIntent represents a message to send a transfer intent.
