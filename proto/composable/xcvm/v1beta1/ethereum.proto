@@ -7,21 +7,31 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "x/xcvm/types";
 
-message LightClientState {
-    BeaconBlockHeader finalized_header = 1;
-    uint64 latest_finalized_epoch = 2;
-    bytes current_sync_committee = 3;
-    bytes next_sync_committee = 4;
-    uint64 statePeriod = 5;
+message ClientState {
+  LightClientState inner = 1;
+  optional uint64 frozen_height_revision_height = 2;
+  optional uint64 frozen_height_revision_number = 3;
+  uint64 latest_height = 4;
 }
 
-message ClientState {
-    LightClientState inner = 1;
-    bytes frozen_height = 2;
-    uint32 latest_height = 3;
-    string ibc_core_address = 4;
-    uint64 next_upgrade_id = 5;
-    bytes _phantom = 6;
+message SyncCommittee {
+  repeated bytes public_keys = 1;
+  bytes aggregate_public_key = 2;
+}
+
+message LightClientState {
+  BeaconBlockHeader finalized_header = 1;
+  uint64 latest_finalized_epoch = 2;
+  SyncCommittee current_sync_committee = 3;
+  SyncCommittee next_sync_committee = 4;
+}
+
+message WasmClientState {
+  bytes data = 1;
+  string code_id = 2;
+  bytes latest_height = 3;
+  bytes inner = 4;
+  bytes _phantom = 5;
 }
 
 message ConsensusState {
@@ -30,7 +40,7 @@ message ConsensusState {
     bytes time = 1;
     // packet commitment root
     bytes root = 2;
-  }
+}
 
 // Eth1Data represents references to the Ethereum 1.x deposit contract.
 message Eth1Data {
@@ -101,4 +111,47 @@ message BeaconBlockBody {
 
 message ReceiptProof {
     map<string, bytes> proof = 1;
+}
+
+message LightClientUpdate {
+  BeaconBlockHeader attested_header = 1;
+  optional SyncCommitteeUpdate sync_committee_update = 2;
+  BeaconBlockHeader finalized_header = 3;
+  ExecutionPayloadProof execution_payload = 4;
+  FinalityProof finality_proof = 5;
+  SyncAggregate sync_aggregate = 6;
+  uint64 signature_slot = 7;
+}
+
+message SyncCommitteeUpdate {
+  SyncCommittee next_sync_committee = 1;
+  repeated bytes next_sync_committee_branch = 2;
+}
+
+message ExecutionPayloadProof {
+  bytes state_root = 1;
+  uint64 block_number = 2;
+  repeated bytes multi_proof = 3;
+  repeated bytes execution_payload_branch = 4;
+  uint64 timestamp = 5;
+}
+
+message FinalityProof {
+  uint64 epoch = 1;
+  repeated bytes finality_branch = 2;
+}
+
+message SyncAggregate {
+  bytes sync_committee_bits = 1;
+  bytes sync_committee_signature = 2;
+}
+
+message AncestorBlock {
+  BeaconBlockHeader header = 1;
+  ExecutionPayloadProof execution_payload = 2;
+  bytes ancestry_proof = 3;
+}
+
+message ClientMessage {
+  LightClientUpdate message = 1;
 }
