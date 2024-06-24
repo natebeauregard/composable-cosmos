@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/binary"
 	"fmt"
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/store"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/gogoproto/proto"
@@ -120,8 +121,9 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		return err
 	}
 
-	if err := verifyBlockHeight(ctx, transferIntent.TimeoutHeight); err != nil {
-		return fmt.Errorf("verify block height: %v", err)
+	currentBlockHeight := ctx.BlockHeight()
+	if currentBlockHeight >= transferIntent.TimeoutHeight {
+		return types.ErrProofSubmittedAfterTimeout
 	}
 
 	var txReceipt gethtypes.Receipt
@@ -194,8 +196,8 @@ func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgT
 		return types.ErrInvalidSenderAddress
 	}
 
-	if err := verifyBlockHeight(ctx, transferIntent.TimeoutHeight); err != nil {
-		return fmt.Errorf("verify block height: %v", err)
+	if ctx.BlockHeight() < transferIntent.TimeoutHeight {
+		return types.ErrPrematureTimeoutTrigger
 	}
 
 	accAddress, err := sdk.AccAddressFromBech32(msg.Sender)
@@ -212,13 +214,6 @@ func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgT
 	// Remove transfer intent from store
 	kvStore.Delete(types.GetPendingTransferIntentKeyById(msg.IntentId))
 
-	return nil
-}
-
-func verifyBlockHeight(ctx sdk.Context, timeoutHeight int64) error {
-	if ctx.BlockHeight() < timeoutHeight {
-		return types.ErrPrematureTimeoutTrigger
-	}
 	return nil
 }
 
@@ -276,8 +271,12 @@ func verifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ [
 	if err := proto.Unmarshal(clientStateBz, wasmClientState); err != nil {
 		return fmt.Errorf("unmarshal client state bytes: %v", err)
 	}
+	typedClientState := new(codectypes.Any)
+	if err := typedClientState.Unmarshal(wasmClientState.Data); err != nil {
+		return fmt.Errorf("unmarshal typed eth client state bytes: %v", err)
+	}
 	ethClientState := new(types.ClientState)
-	if err := ethClientState.Unmarshal(wasmClientState.Data); err != nil {
+	if err := ethClientState.Unmarshal(typedClientState.Value); err != nil {
 		return fmt.Errorf("unmarshal eth client state bytes: %v", err)
 	}
 
@@ -304,7 +303,6 @@ func verifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ [
 }
 
 func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverPublicKey *ecdsa.PublicKey) error {
-	//TODO: find external package to import instead of using new struct
 	type LogTransfer struct {
 		From         common.Address
 		To           common.Address
@@ -346,16 +344,15 @@ func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 }
 
 func (k Keeper) validateClientState(ctx sdk.Context, clientId string) error {
-	_, found := k.clientKeeper.GetClientState(ctx, clientId)
+	clientState, found := k.clientKeeper.GetClientState(ctx, clientId)
 	if !found {
 		return types.ErrClientNotFound
 	}
 
-	// TODO uncomment clientStatus checks after figuring out why status is Unknown and not Active in test
-	//clientStatus := k.clientKeeper.GetClientStatus(ctx, clientState, clientId)
-	//if clientStatus != ibccore.Active {
-	//	return types.ErrClientNotActive
-	//}
+	clientStatus := k.clientKeeper.GetClientStatus(ctx, clientState, clientId)
+	if clientStatus != ibccore.Active {
+		return types.ErrClientNotActive
+	}
 
 	return nil
 }
@@ -366,10 +363,10 @@ func (k Keeper) getClientState(ctx sdk.Context, clientId string) (ibccore.Client
 		return nil, types.ErrClientNotFound
 	}
 
-	//clientStatus := k.clientKeeper.GetClientStatus(ctx, clientState, clientId)
-	//if clientStatus != ibccore.Active {
-	//	return nil, types.ErrClientNotActive
-	//}
+	clientStatus := k.clientKeeper.GetClientStatus(ctx, clientState, clientId)
+	if clientStatus != ibccore.Active {
+		return nil, types.ErrClientNotActive
+	}
 
 	return clientState, nil
 }
