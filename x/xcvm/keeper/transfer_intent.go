@@ -21,11 +21,12 @@ import (
 	"strconv"
 )
 
+// SendEthTransferIntent creates and stores a new transfer intent and emits an event to alert potential solvers
 func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransferIntent) error {
 	clientId := msg.ClientId
 
 	if err := k.validateClientState(ctx, clientId); err != nil {
-		return err
+		return fmt.Errorf("validate client state: %v", err)
 	}
 
 	intentId := k.getNextIntentId(ctx)
@@ -65,6 +66,7 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 	return nil
 }
 
+// getNextIntentId retrieves the next intent id from the store
 func (k Keeper) getNextIntentId(ctx sdk.Context) uint64 {
 	kvStore := ctx.KVStore(k.storeKey)
 
@@ -79,6 +81,7 @@ func (k Keeper) getNextIntentId(ctx sdk.Context) uint64 {
 	return intentId
 }
 
+// SetNextIntentId sets the next intent id in the store
 func (k Keeper) SetNextIntentId(ctx sdk.Context, intentId uint64) {
 	kvStore := ctx.KVStore(k.storeKey)
 	intentIdBz := make([]byte, 8)
@@ -96,6 +99,7 @@ func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.Transfer
 	kvStore.Set(transferIntentKey, transferIntentValue)
 }
 
+// GetTransferIntent retrieves a transfer intent from the store
 func (k Keeper) GetTransferIntent(ctx sdk.Context, intentId uint64) (*types.TransferIntent, error) {
 	kvStore := ctx.KVStore(k.storeKey)
 
@@ -113,31 +117,34 @@ func (k Keeper) GetTransferIntent(ctx sdk.Context, intentId uint64) (*types.Tran
 	return &transferIntent, nil
 }
 
+// VerifyEthTransferIntentProof verifies the proof submitted by the solver to claim the bounty for executing the transfer intent
 func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVerifyTransferIntentProof) error {
 	kvStore := ctx.KVStore(k.storeKey)
 
+	// verify that the transfer intent exists
 	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
 	if err != nil {
-		return err
+		return fmt.Errorf("get transfer intent: %v", err)
 	}
 
+	// verify that the transfer intent request is not timed out
 	currentBlockHeight := ctx.BlockHeight()
 	if currentBlockHeight >= transferIntent.TimeoutHeight {
 		return types.ErrProofSubmittedAfterTimeout
 	}
 
+	// verify that the transaction receipt is valid and included in the execution block header
 	var txReceipt gethtypes.Receipt
 	if err := txReceipt.UnmarshalJSON(msg.TxReceipt); err != nil {
 		return types.ErrInvalidTxReceipt
 	}
-
 	var blockHeader gethtypes.Header
 	if err := rlp.DecodeBytes(msg.BlockHeader, &blockHeader); err != nil {
-		return err
+		return fmt.Errorf("decode block header: %v", err)
 	}
 	txReceiptHash, err := getTxReceiptHash(txReceipt)
 	if err != nil {
-		return err
+		return fmt.Errorf("get tx receipt hash: %v", err)
 	}
 	if err = verifyReceiptProof(blockHeader, txReceiptHash, msg.ReceiptProof); err != nil {
 		return fmt.Errorf("verify receipt proof: %v", err)
@@ -146,7 +153,7 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	clientId := transferIntent.ClientId
 	clientState, err := k.getClientState(ctx, clientId)
 	if err != nil {
-		return err
+		return fmt.Errorf("get client state: %v", err)
 	}
 
 	clientStateBeaconBlockHeader, err := getClientStateBeaconBlockHeader(clientState)
@@ -159,7 +166,7 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	if len(msg.BeaconBlockHeaders) > 0 {
 		// Include the light client state as the last block header in the chain to verify
 		beaconBlockHeaders := append(msg.BeaconBlockHeaders, clientStateBeaconBlockHeader)
-		if err := verifyBeaconBlockHeaders(beaconBlockHeaders); err != nil {
+		if err := verifyPreviousBeaconBlockHeaders(beaconBlockHeaders); err != nil {
 			return fmt.Errorf("verify beacon block headers: %v", err)
 		}
 		intentBeaconBlockHeader = msg.BeaconBlockHeaders[0]
@@ -167,32 +174,38 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		intentBeaconBlockHeader = clientStateBeaconBlockHeader
 	}
 
+	// Verify that the provided beacon block body matches the beacon block header's body root and the transaction receipt's block hash
 	if err := verifyBeaconBlockBody(*intentBeaconBlockHeader, msg.BeaconBlockBody, txReceipt); err != nil {
 		return fmt.Errorf("verify beacon block body: %v", err)
 	}
 
+	// Verify that the solver signed over the receipt
 	solverPublicKey, err := crypto.DecompressPubkey(msg.PublicKey)
 	if err != nil {
 		return fmt.Errorf("decompress public key: %v", err)
 	}
-
 	if err := verifyReceiptSignature(solverPublicKey, txReceiptHash, txReceipt.BlockHash, msg.ReceiptSignature); err != nil {
 		return fmt.Errorf("verify receipt signature: %v", err)
 	}
 
+	// Verify that the ERC-20 transfer log emitted in the transaction receipt includes the correct destination address and amount specified in the transfer intent
 	if err := verifyTransferEvent(txReceipt, *transferIntent, solverPublicKey); err != nil {
 		return fmt.Errorf("verify transfer event: %v", err)
 	}
 
+	// Verify that the receipt is unique
 	if err := verifyReceiptUniqueness(kvStore, txReceiptHash, txReceipt.BlockHash); err != nil {
 		return fmt.Errorf("verify receipt uniqueness: %v", err)
 	}
 
+	// Get solver's account address
 	accAddress, err := sdk.AccAddressFromBech32(msg.Signer)
 	if err != nil {
 		return fmt.Errorf("acc address conversion: %v", err)
 	}
 	coins := sdk.NewCoins(transferIntent.Bounty)
+
+	// Transfer bounty to solver
 	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, accAddress, coins); err != nil {
 		return fmt.Errorf("unlock bounty for solver: %v", err)
 	}
@@ -203,22 +216,27 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	return nil
 }
 
+// TriggerEthTransferIntentTimeout releases the bounty to the original sender if the intent has timed out
 func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgTriggerTransferIntentTimeout) error {
 	kvStore := ctx.KVStore(k.storeKey)
 
+	// Check that the transfer intent exists and is valid
 	transferIntent, err := k.GetTransferIntent(ctx, msg.IntentId)
 	if err != nil {
 		return fmt.Errorf("get transfer intent: %v", err)
 	}
 
+	// Check if the sender is the original sender of the intent
 	if msg.Sender != transferIntent.SourceAddress {
 		return types.ErrInvalidSenderAddress
 	}
 
+	// Check if the intent is able to be timed out
 	if ctx.BlockHeight() < transferIntent.TimeoutHeight {
 		return types.ErrPrematureTimeoutTrigger
 	}
 
+	// Get user's account address
 	accAddress, err := sdk.AccAddressFromBech32(msg.Sender)
 	if err != nil {
 		return fmt.Errorf("acc address conversion: %v", err)
@@ -236,6 +254,7 @@ func (k Keeper) TriggerEthTransferIntentTimeout(ctx sdk.Context, msg *types.MsgT
 	return nil
 }
 
+// verifyReceiptSignature verifies that the solver signed over its proof using the same Ethereum account with which it fulfills the intent
 func verifyReceiptSignature(solverPublicKey *ecdsa.PublicKey, txReceiptHash []byte, blockHash common.Hash, receiptSig []byte) error {
 	encPublicKey := crypto.FromECDSAPub(solverPublicKey)
 	receiptDataHash := crypto.Keccak256(append(txReceiptHash, blockHash.Bytes()...))
@@ -247,20 +266,22 @@ func verifyReceiptSignature(solverPublicKey *ecdsa.PublicKey, txReceiptHash []by
 	return nil
 }
 
+// verifyReceiptProof verifies that the receipt is included in the block header's receipt trie
 func verifyReceiptProof(blockHeader gethtypes.Header, txReceiptHash []byte, receiptProofBz []byte) error {
 	var receiptProof types.ReceiptProof
 	if err := receiptProof.Unmarshal(receiptProofBz); err != nil {
-		return err
+		return fmt.Errorf("unmarshal receipt proof: %v", err)
 	}
 
 	receiptsRoot := blockHeader.ReceiptHash
 	if _, err := trie.VerifyProof(receiptsRoot, txReceiptHash, receiptProof); err != nil {
-		return err
+		return fmt.Errorf("verify proof: %v", err)
 	}
 
 	return nil
 }
 
+// getTxReceiptHash returns the hash of the transaction receipt
 func getTxReceiptHash(txReceipt gethtypes.Receipt) ([]byte, error) {
 	//Get binary representation of txReceipt rlp encoding
 	txReceiptBz, err := txReceipt.MarshalBinary()
@@ -271,6 +292,7 @@ func getTxReceiptHash(txReceipt gethtypes.Receipt) ([]byte, error) {
 	return txReceiptHash, nil
 }
 
+// verifyReceiptUniqueness verifies that the receipt has not been processed before
 func verifyReceiptUniqueness(store store.KVStore, txReceiptHash []byte, blockHash common.Hash) error {
 	receiptKey := types.GetUsedReceiptKey(txReceiptHash, blockHash)
 	if store.Has(receiptKey) {
@@ -281,7 +303,8 @@ func verifyReceiptUniqueness(store store.KVStore, txReceiptHash []byte, blockHas
 	return nil
 }
 
-func verifyBeaconBlockHeaders(beaconBlockHeaders []*types.BeaconBlockHeader) error {
+// verifyPreviousBeaconBlockHeaders verifies that the provided previous beacon block headers are valid and in the correct order
+func verifyPreviousBeaconBlockHeaders(beaconBlockHeaders []*types.BeaconBlockHeader) error {
 	intentBeaconBlockHeader := *beaconBlockHeaders[0]
 	headerHash, err := intentBeaconBlockHeader.Hash()
 	if err != nil {
@@ -303,6 +326,7 @@ func verifyBeaconBlockHeaders(beaconBlockHeaders []*types.BeaconBlockHeader) err
 	return nil
 }
 
+// verifyBeaconBlockBody verifies that the provided beacon block body matches the beacon block header's body root and the transaction receipt's block hash
 func verifyBeaconBlockBody(beaconBlockHeader types.BeaconBlockHeader, beaconBlockBodySSZ []byte, txReceipt gethtypes.Receipt) error {
 	var beaconBlockBodyRoot [32]byte
 	beaconBlockBodyRootSlice := beaconBlockHeader.GetBodyRoot()
@@ -329,6 +353,7 @@ func verifyBeaconBlockBody(beaconBlockHeader types.BeaconBlockHeader, beaconBloc
 	return nil
 }
 
+// getClientStateBeaconBlockHeader extracts the beacon block header from the client state
 func getClientStateBeaconBlockHeader(clientState ibccore.ClientState) (*types.BeaconBlockHeader, error) {
 	clientStateBz, err := proto.Marshal(clientState)
 	if err != nil {
@@ -350,6 +375,7 @@ func getClientStateBeaconBlockHeader(clientState ibccore.ClientState) (*types.Be
 	return ethClientState.GetInner().GetFinalizedHeader(), nil
 }
 
+// verifyTransferEvent verifies that the ERC-20 transfer log emitted in the transaction receipt includes the correct destination address and amount specified in the transfer intent
 func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverPublicKey *ecdsa.PublicKey) error {
 	type LogTransfer struct {
 		From         common.Address
@@ -391,6 +417,7 @@ func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 	return nil
 }
 
+// validateClientState checks if the client state exists and is active
 func (k Keeper) validateClientState(ctx sdk.Context, clientId string) error {
 	clientState, found := k.clientKeeper.GetClientState(ctx, clientId)
 	if !found {
@@ -405,6 +432,7 @@ func (k Keeper) validateClientState(ctx sdk.Context, clientId string) error {
 	return nil
 }
 
+// getClientState retrieves the client state if it exists and validates that it is active
 func (k Keeper) getClientState(ctx sdk.Context, clientId string) (ibccore.ClientState, error) {
 	clientState, found := k.clientKeeper.GetClientState(ctx, clientId)
 	if !found {
