@@ -10,7 +10,7 @@ var (
 	ErrClientNotActive           = errorsmod.Register(ModuleName, 3, "client not active")
 	ErrInvalidIntentId           = errorsmod.Register(ModuleName, 4, "invalid intent id")
 	ErrInvalidTxReceipt          = errorsmod.Register(ModuleName, 5, "invalid transaction receipt")
-	ErrInvalidBlockHeader        = errorsmod.Register(ModuleName, 6, "invalid block header")
+	ErrInvalidBlockHeaders       = errorsmod.Register(ModuleName, 6, "invalid block headers")
 
 	ErrInvalidReceiptKey = errorsmod.Register(ModuleName, 7, "invalid receipt key")
 	ErrReceiptNotFound   = errorsmod.Register(ModuleName, 8, "receipt not found")

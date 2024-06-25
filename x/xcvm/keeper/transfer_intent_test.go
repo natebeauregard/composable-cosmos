@@ -189,7 +189,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 		Logs:      logs,
 		BlockHash: common.HexToHash(blockHash),
 	}
-	txReceiptBz, err := txReceipt.MarshalJSON() // TODO: investigate why MarshalJSON needs to be used for passing into the Msg and why MarshalBinary loses some receipt information when unmarshalling
+	txReceiptBz, err := txReceipt.MarshalJSON()
 	suite.Require().NoError(err)
 	txReceiptBinary, err := txReceipt.MarshalBinary()
 	suite.Require().NoError(err)
@@ -307,7 +307,67 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 	suite.Require().Error(err)
 }
 
-func (suite *TransferIntentTestSuite) TestE2EIntent() {
+func (suite *TransferIntentTestSuite) TestE2EIntent_IntentIncludedInCurrentClientState() {
+	const executionBlockHash string = "0x3f07a9c83155594c000642e7d60e8a8a00038d03e9849171a05ed0e2d47acbb3"
+
+	// construct beacon block body and header to use for the light client state
+	intentBeaconBlockBody := createBeaconBlockBody(executionBlockHash)
+	intentBodyRoot, err := intentBeaconBlockBody.HashTreeRoot()
+	suite.Require().NoError(err)
+
+	lightClientBeaconBlockHeader := &types.BeaconBlockHeader{
+		Slot:          0,
+		ProposerIndex: 0,
+		ParentRoot:    make([]byte, 32),
+		StateRoot:     make([]byte, 32),
+		BodyRoot:      intentBodyRoot[:],
+	}
+
+	suite.runE2ETest(lightClientBeaconBlockHeader, nil, intentBeaconBlockBody)
+}
+
+func (suite *TransferIntentTestSuite) TestE2EIntent_IntentIncludedInPreviousClientState() {
+	const executionBlockHash string = "0x3f07a9c83155594c000642e7d60e8a8a00038d03e9849171a05ed0e2d47acbb3"
+	const intentBeaconBlockHash string = "0x89c3e4585e9904876cdcfbd4d6bfbd474b8e42c2eb754e19feb7e55e7d6c88eb"
+	const intermediateBeaconBlockHash string = "0xb3a4ab7196f46f24c076f3575131c8abae9aeebf2615c14e73aab7962336fba8"
+
+	// construct beacon block body and header to use for the light client state
+	intentBeaconBlockBody := createBeaconBlockBody(executionBlockHash)
+	intentBodyRoot, err := intentBeaconBlockBody.HashTreeRoot()
+	suite.Require().NoError(err)
+
+	lightClientBeaconBlockHeader := &types.BeaconBlockHeader{
+		Slot:          0,
+		ProposerIndex: 0,
+		ParentRoot:    common.FromHex(intermediateBeaconBlockHash),
+		StateRoot:     make([]byte, 32),
+		BodyRoot:      make([]byte, 32),
+	}
+
+	// construct previous beacon block headers to verify an intent execution from a prior block
+	intentBeaconBlockHeader := &types.BeaconBlockHeader{
+		Slot:          0,
+		ProposerIndex: 0,
+		ParentRoot:    make([]byte, 32),
+		StateRoot:     make([]byte, 32),
+		BodyRoot:      intentBodyRoot[:],
+	}
+	intermediateBeaconBlockHeader := &types.BeaconBlockHeader{
+		Slot:          0,
+		ProposerIndex: 0,
+		ParentRoot:    common.FromHex(intentBeaconBlockHash),
+		StateRoot:     make([]byte, 32),
+		BodyRoot:      make([]byte, 32),
+	}
+	previousBeaconBlockHeaders := []*types.BeaconBlockHeader{
+		intentBeaconBlockHeader,
+		intermediateBeaconBlockHeader,
+	}
+
+	suite.runE2ETest(lightClientBeaconBlockHeader, previousBeaconBlockHeaders, intentBeaconBlockBody)
+}
+
+func (suite *TransferIntentTestSuite) runE2ETest(lightClientBeaconBlockHeader *types.BeaconBlockHeader, previousBeaconBlockHeaders []*types.BeaconBlockHeader, intentBeaconBlockBody *prysmtypes.BeaconBlockBody) {
 	suite.SetupTest()
 
 	// generate user account
@@ -322,13 +382,6 @@ func (suite *TransferIntentTestSuite) TestE2EIntent() {
 	const startingBodyRoot string = "6f2d49f08a43eacd98c4f0ae09b7e6a98e784f1b7c5e4c6d1f0f9a6c4d5b2e3a"
 
 	solverPrivateKey, publicKeyCompressed, solverEthAddress := generateKeys()
-
-	//construct beacon block body and header to use for the light client state
-	beaconBlockBody := createBeaconBlockBody(blockHash)
-	beaconBlockBodyBz, err := beaconBlockBody.MarshalSSZ()
-	suite.Require().NoError(err)
-	bodyRoot, err := beaconBlockBody.HashTreeRoot()
-	suite.Require().NoError(err)
 
 	originalBodyRoot, err := hex.DecodeString(startingBodyRoot)
 	_, ethClientId, err := createEthLightClient(suite, originalBodyRoot)
@@ -356,20 +409,13 @@ func (suite *TransferIntentTestSuite) TestE2EIntent() {
 	_, err = suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
 	suite.Require().NoError(err)
 
-	updatedBeaconBlockHeader := &types.BeaconBlockHeader{
-		Slot:          0,
-		ProposerIndex: 0,
-		ParentRoot:    make([]byte, 32),
-		StateRoot:     make([]byte, 32),
-		BodyRoot:      bodyRoot[:],
-	}
 	lightClientUpdate := types.LightClientUpdate{
-		AttestedHeader:       updatedBeaconBlockHeader,
+		AttestedHeader:       lightClientBeaconBlockHeader,
 		XSyncCommitteeUpdate: nil,
-		FinalizedHeader:      updatedBeaconBlockHeader,
+		FinalizedHeader:      lightClientBeaconBlockHeader,
 		ExecutionPayload: &types.ExecutionPayloadProof{
 			StateRoot:              make([]byte, 32),
-			BlockNumber:            0,
+			BlockNumber:            1,
 			MultiProof:             nil,
 			ExecutionPayloadBranch: nil,
 			Timestamp:              0,
@@ -432,16 +478,20 @@ func (suite *TransferIntentTestSuite) TestE2EIntent() {
 	receiptSignature, err := crypto.Sign(receiptDataHash, solverPrivateKey)
 	suite.Require().NoError(err)
 
+	intentBeaconBlockBodyBz, err := intentBeaconBlockBody.MarshalSSZ()
+	suite.Require().NoError(err)
+
 	// create Msg to verify intent execution proof
 	msgVerifyTransferIntentProof := types.MsgVerifyTransferIntentProof{
-		Signer:           solverAddress.String(),
-		IntentId:         0,
-		TxReceipt:        txReceiptBz,
-		ReceiptSignature: receiptSignature,
-		PublicKey:        publicKeyCompressed,
-		BlockHeader:      blockHeaderBz,
-		ReceiptProof:     receiptProofBz,
-		BeaconBlockBody:  beaconBlockBodyBz,
+		Signer:             solverAddress.String(),
+		IntentId:           0,
+		TxReceipt:          txReceiptBz,
+		ReceiptSignature:   receiptSignature,
+		PublicKey:          publicKeyCompressed,
+		BlockHeader:        blockHeaderBz,
+		ReceiptProof:       receiptProofBz,
+		BeaconBlockBody:    intentBeaconBlockBodyBz,
+		BeaconBlockHeaders: previousBeaconBlockHeaders,
 	}
 
 	// Assert intent was verified correctly

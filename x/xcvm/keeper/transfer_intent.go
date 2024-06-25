@@ -148,7 +148,26 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	if err != nil {
 		return err
 	}
-	if err := verifyBeaconBlockBody(clientState, msg.BeaconBlockBody, txReceipt); err != nil {
+
+	clientStateBeaconBlockHeader, err := getClientStateBeaconBlockHeader(clientState)
+	if err != nil {
+		return fmt.Errorf("get client state beacon block header: %v", err)
+	}
+
+	// If the light client is ahead of the block where the intent was executed, verify that the provided beacon block headers are valid
+	var intentBeaconBlockHeader *types.BeaconBlockHeader
+	if len(msg.BeaconBlockHeaders) > 0 {
+		// Include the light client state as the last block header in the chain to verify
+		beaconBlockHeaders := append(msg.BeaconBlockHeaders, clientStateBeaconBlockHeader)
+		if err := verifyBeaconBlockHeaders(beaconBlockHeaders); err != nil {
+			return fmt.Errorf("verify beacon block headers: %v", err)
+		}
+		intentBeaconBlockHeader = msg.BeaconBlockHeaders[0]
+	} else {
+		intentBeaconBlockHeader = clientStateBeaconBlockHeader
+	}
+
+	if err := verifyBeaconBlockBody(*intentBeaconBlockHeader, msg.BeaconBlockBody, txReceipt); err != nil {
 		return fmt.Errorf("verify beacon block body: %v", err)
 	}
 
@@ -262,26 +281,31 @@ func verifyReceiptUniqueness(store store.KVStore, txReceiptHash []byte, blockHas
 	return nil
 }
 
-func verifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ []byte, txReceipt gethtypes.Receipt) error {
-	clientStateBz, err := proto.Marshal(clientState)
+func verifyBeaconBlockHeaders(beaconBlockHeaders []*types.BeaconBlockHeader) error {
+	intentBeaconBlockHeader := *beaconBlockHeaders[0]
+	headerHash, err := intentBeaconBlockHeader.Hash()
 	if err != nil {
-		return fmt.Errorf("marshal client state: %v", err)
-	}
-	wasmClientState := new(wasmtypes.ClientState)
-	if err := proto.Unmarshal(clientStateBz, wasmClientState); err != nil {
-		return fmt.Errorf("unmarshal client state bytes: %v", err)
-	}
-	typedClientState := new(codectypes.Any)
-	if err := typedClientState.Unmarshal(wasmClientState.Data); err != nil {
-		return fmt.Errorf("unmarshal typed eth client state bytes: %v", err)
-	}
-	ethClientState := new(types.ClientState)
-	if err := ethClientState.Unmarshal(typedClientState.Value); err != nil {
-		return fmt.Errorf("unmarshal eth client state bytes: %v", err)
+		return fmt.Errorf("hash intent beacon block header: %v", err)
 	}
 
+	var currentParentRoot [32]byte
+	for _, header := range beaconBlockHeaders[1:] {
+		copy(currentParentRoot[:], header.GetParentRoot())
+		if currentParentRoot != headerHash {
+			return types.ErrInvalidBlockHeaders
+		}
+		headerHash, err = header.Hash()
+		if err != nil {
+			return fmt.Errorf("hash beacon block header: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func verifyBeaconBlockBody(beaconBlockHeader types.BeaconBlockHeader, beaconBlockBodySSZ []byte, txReceipt gethtypes.Receipt) error {
 	var beaconBlockBodyRoot [32]byte
-	beaconBlockBodyRootSlice := ethClientState.GetInner().GetFinalizedHeader().GetBodyRoot()
+	beaconBlockBodyRootSlice := beaconBlockHeader.GetBodyRoot()
 	copy(beaconBlockBodyRoot[:], beaconBlockBodyRootSlice)
 
 	var beaconBlockBody prysmtypes.BeaconBlockBody
@@ -290,6 +314,9 @@ func verifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ [
 	}
 
 	beaconBlockBodyHash, err := beaconBlockBody.HashTreeRoot()
+	if err != nil {
+		return fmt.Errorf("hash beacon block body: %v", err)
+	}
 	if beaconBlockBodyHash != beaconBlockBodyRoot {
 		return types.ErrBlockBodyMismatch
 	}
@@ -300,6 +327,27 @@ func verifyBeaconBlockBody(clientState ibccore.ClientState, beaconBlockBodySSZ [
 	}
 
 	return nil
+}
+
+func getClientStateBeaconBlockHeader(clientState ibccore.ClientState) (*types.BeaconBlockHeader, error) {
+	clientStateBz, err := proto.Marshal(clientState)
+	if err != nil {
+		return nil, fmt.Errorf("marshal client state: %v", err)
+	}
+	wasmClientState := new(wasmtypes.ClientState)
+	if err := proto.Unmarshal(clientStateBz, wasmClientState); err != nil {
+		return nil, fmt.Errorf("unmarshal client state bytes: %v", err)
+	}
+	typedClientState := new(codectypes.Any)
+	if err := typedClientState.Unmarshal(wasmClientState.Data); err != nil {
+		return nil, fmt.Errorf("unmarshal typed eth client state bytes: %v", err)
+	}
+	ethClientState := new(types.ClientState)
+	if err := ethClientState.Unmarshal(typedClientState.Value); err != nil {
+		return nil, fmt.Errorf("unmarshal eth client state bytes: %v", err)
+	}
+
+	return ethClientState.GetInner().GetFinalizedHeader(), nil
 }
 
 func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverPublicKey *ecdsa.PublicKey) error {
