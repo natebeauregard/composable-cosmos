@@ -3,6 +3,7 @@ package composable.xcvm.v1beta1;
 
 import "amino/amino.proto";
 import "composable/xcvm/v1beta1/intent.proto";
+import "composable/xcvm/v1beta1/ethereum.proto";
 import "cosmos/msg/v1/msg.proto";
 import "cosmos_proto/cosmos.proto";
 import "gogoproto/gogo.proto";
@@ -63,12 +64,14 @@ message MsgVerifyTransferIntentProof {
     bytes receipt_signature = 4;
     // the public key of the solver executing the transfer intent.
     bytes public_key = 5;
-    // the block header of the block containing the transfer intent execution.
+    // the execution block header of the block containing the transfer intent execution.
     bytes block_header = 6;
     // the proof of the receipt in the block.
     bytes receipt_proof = 7;
     // the body of the beacon block containing the transfer intent execution.
     bytes beacon_block_body = 8;
+    // all beacon block headers from the block where the transfer intent was executed up to block in the current light client state.
+    repeated BeaconBlockHeader beacon_block_headers = 9;
 }
 
 // MsgVerifyTransferIntentProofResponse is the response type for the Msg/MsgVerifyTransferIntentProof RPC method.
