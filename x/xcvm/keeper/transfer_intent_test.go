@@ -85,23 +85,24 @@ func (suite *TransferIntentTestSuite) TestSendTransferIntent() {
 
 	// Send transfer intent message from user
 	msgSendTransferIntent := types.MsgSendTransferIntent{
-		FromAddress:        userAddress.String(),
+		Sender:             userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
 		TimeoutHeight:      suite.ctx.BlockHeight() + 100,
 		TransferTokens:     &tokens,
 		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
-	_, err = suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
+	_, err = suite.app.XCVMKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
 	suite.Require().NoError(err)
 
 	// Verify the transfer intent is stored properly in the store
 	intentId := uint64(0)
-	transferIntent, err := suite.app.XCvmKeeper.GetTransferIntent(suite.ctx, intentId)
+	transferIntent, err := suite.app.XCVMKeeper.GetTransferIntent(suite.ctx, intentId)
 	expectedTransferIntent := types.TransferIntent{
-		SourceAddress:      msgSendTransferIntent.FromAddress,
+		SourceAddress:      msgSendTransferIntent.Sender,
 		DestinationAddress: msgSendTransferIntent.DestinationAddress,
 		TransferTokens:     msgSendTransferIntent.TransferTokens,
+		StartingHeight:     suite.ctx.BlockHeight(),
 		TimeoutHeight:      msgSendTransferIntent.TimeoutHeight,
 		ClientId:           msgSendTransferIntent.ClientId,
 		Bounty:             msgSendTransferIntent.Bounty,
@@ -179,7 +180,8 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 		Bounty:             bounty,
 		TimeoutHeight:      suite.ctx.BlockHeight() + 100,
 	}
-	suite.app.XCvmKeeper.AddTransferIntent(suite.ctx, transferIntent, intentId)
+	err = suite.app.XCVMKeeper.AddTransferIntent(suite.ctx, transferIntent, intentId)
+	suite.Require().NoError(err)
 
 	// create ERC20 transfer event log to use for intent proof
 	tokenAmountBz := make([]byte, 8)
@@ -211,7 +213,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 
 	// create Msg to verify intent execution proof
 	msgVerifyTransferIntentProof := types.MsgVerifyTransferIntentProof{
-		Signer:           solverAddress.String(),
+		Sender:           solverAddress.String(),
 		IntentId:         intentId,
 		TxReceipt:        txReceiptBz,
 		ReceiptSignature: receiptSignature,
@@ -222,7 +224,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	}
 
 	// Assert intent was verified correctly
-	_, err = suite.app.XCvmKeeper.VerifyTransferIntentProof(suite.ctx, &msgVerifyTransferIntentProof)
+	_, err = suite.app.XCVMKeeper.VerifyTransferIntentProof(suite.ctx, &msgVerifyTransferIntentProof)
 	suite.Require().NoError(err)
 
 	// Verify that the bounty was transferred to the solver's account and deducted from the module's account
@@ -232,7 +234,7 @@ func (suite *TransferIntentTestSuite) TestVerifyTransferIntentProof() {
 	suite.Require().Equal(startingBaseAccountBalance.Add(bountyAmount), solverBalance.Amount)
 
 	// Assert that transfer intent is purged from the store after being executed
-	_, err = suite.app.XCvmKeeper.GetTransferIntent(suite.ctx, intentId)
+	_, err = suite.app.XCVMKeeper.GetTransferIntent(suite.ctx, intentId)
 	suite.Require().Error(err)
 }
 
@@ -257,14 +259,14 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 	// Send transfer intent message from user
 	const intentBlockDuration int64 = 100
 	msgSendTransferIntent := types.MsgSendTransferIntent{
-		FromAddress:        userAddress.String(),
+		Sender:             userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
 		TimeoutHeight:      suite.ctx.BlockHeight() + intentBlockDuration,
 		TransferTokens:     &types.TransferTokens{},
 		Bounty:             sdk.NewCoin(bountyDenom, bountyAmount),
 	}
-	_, err = suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
+	_, err = suite.app.XCVMKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
 	suite.Require().NoError(err)
 
 	// Verify that the bounty was deducted from the user's account and is stored in the XCVM module account
@@ -280,7 +282,7 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 	}
 
 	// Trigger the transfer intent timeout prematurely
-	_, err = suite.app.XCvmKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
+	_, err = suite.app.XCVMKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
 	suite.Require().ErrorContains(err, types.ErrPrematureTimeoutTrigger.Error())
 
 	// Let the desired amount of time pass
@@ -288,12 +290,12 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 
 	// Trigger the transfer intent timeout with a different user
 	msgTriggerTransferIntentTimeout.Sender = otherAddress.String()
-	_, err = suite.app.XCvmKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
+	_, err = suite.app.XCVMKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
 	suite.Require().ErrorContains(err, types.ErrInvalidSenderAddress.Error())
 
 	// Trigger the transfer intent timeout after the desired time has passed
 	msgTriggerTransferIntentTimeout.Sender = userAddress.String()
-	_, err = suite.app.XCvmKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
+	_, err = suite.app.XCVMKeeper.TriggerTransferIntentTimeout(suite.ctx, &msgTriggerTransferIntentTimeout)
 	suite.Require().NoError(err)
 
 	// Verify that the bounty was transferred back to the user's account and deducted from the module's account
@@ -303,7 +305,7 @@ func (suite *TransferIntentTestSuite) TestTriggerTransferIntentTimeout() {
 	suite.Require().Equal(startingUserBalance, userBalance.Amount)
 
 	// Assert that transfer intent is purged from the store after being executed
-	_, err = suite.app.XCvmKeeper.GetTransferIntent(suite.ctx, intentId)
+	_, err = suite.app.XCVMKeeper.GetTransferIntent(suite.ctx, intentId)
 	suite.Require().Error(err)
 }
 
@@ -397,7 +399,7 @@ func (suite *TransferIntentTestSuite) runE2ETest(lightClientBeaconBlockHeader *t
 
 	// Send transfer intent message from user
 	msgSendTransferIntent := types.MsgSendTransferIntent{
-		FromAddress:        userAddress.String(),
+		Sender:             userAddress.String(),
 		DestinationAddress: destinationEthAddress,
 		ClientId:           ethClientId,
 		TimeoutHeight:      suite.ctx.BlockHeight() + 100,
@@ -406,7 +408,7 @@ func (suite *TransferIntentTestSuite) runE2ETest(lightClientBeaconBlockHeader *t
 	}
 	fmt.Println("Transfer intent sent by user")
 
-	_, err = suite.app.XCvmKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
+	_, err = suite.app.XCVMKeeper.SendTransferIntent(suite.ctx, &msgSendTransferIntent)
 	suite.Require().NoError(err)
 
 	lightClientUpdate := types.LightClientUpdate{
@@ -483,7 +485,7 @@ func (suite *TransferIntentTestSuite) runE2ETest(lightClientBeaconBlockHeader *t
 
 	// create Msg to verify intent execution proof
 	msgVerifyTransferIntentProof := types.MsgVerifyTransferIntentProof{
-		Signer:             solverAddress.String(),
+		Sender:             solverAddress.String(),
 		IntentId:           0,
 		TxReceipt:          txReceiptBz,
 		ReceiptSignature:   receiptSignature,
@@ -496,7 +498,7 @@ func (suite *TransferIntentTestSuite) runE2ETest(lightClientBeaconBlockHeader *t
 
 	// Assert intent was verified correctly
 	fmt.Println("Verifying transfer intent proof submitted by solver")
-	_, err = suite.app.XCvmKeeper.VerifyTransferIntentProof(suite.ctx, &msgVerifyTransferIntentProof)
+	_, err = suite.app.XCVMKeeper.VerifyTransferIntentProof(suite.ctx, &msgVerifyTransferIntentProof)
 	suite.Require().NoError(err)
 
 	// Verify that the bounty was transferred to the solver's account and deducted from the user's account
@@ -508,7 +510,7 @@ func (suite *TransferIntentTestSuite) runE2ETest(lightClientBeaconBlockHeader *t
 	suite.Require().Equal(sdk.NewInt(0), moduleBalance.Amount)
 
 	// Assert that transfer intent is purged from the store after being executed
-	_, err = suite.app.XCvmKeeper.GetTransferIntent(suite.ctx, 0)
+	_, err = suite.app.XCVMKeeper.GetTransferIntent(suite.ctx, 0)
 	suite.Require().Error(err)
 }
 
@@ -543,12 +545,21 @@ func createBeaconBlockBody(blockHashHex string) *prysmtypes.BeaconBlockBody {
 	}
 }
 
-func createReceiptProof(txReceiptHash []byte, txReceiptBinary []byte) ([]byte, *common.Hash, error) {
+func createReceiptProof(txReceiptHash []byte, txReceiptBz []byte) ([]byte, *common.Hash, error) {
+	otherTxReceipt := gethtypes.Receipt{}
+	otherTxReceiptBz, err := otherTxReceipt.MarshalBinary()
+	otherTxReceiptHash := crypto.Keccak256(txReceiptBz)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal placeholder tx receipt: %w", err)
+	}
+
+	receiptTrie := trie.NewEmpty(trie.NewDatabase(rawdb.NewMemoryDatabase()))
+	receiptTrie.Update(txReceiptHash[:], txReceiptBz)
+	receiptTrie.Update(otherTxReceiptHash[:], otherTxReceiptBz)
+
 	receiptProof := types.ReceiptProof{
 		Proof: make(map[string][]byte),
 	}
-	receiptTrie := trie.NewEmpty(trie.NewDatabase(rawdb.NewMemoryDatabase()))
-	receiptTrie.Update(txReceiptHash[:], txReceiptBinary)
 	if err := receiptTrie.Prove(txReceiptHash[:], 0, receiptProof); err != nil {
 		return nil, nil, err
 	}

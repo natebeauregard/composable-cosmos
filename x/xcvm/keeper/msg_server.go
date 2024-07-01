@@ -7,19 +7,7 @@ import (
 	"github.com/notional-labs/composable/v6/x/xcvm/types"
 )
 
-var _ types.MsgServer = msgServer{}
-
-// NewMsgServerImpl returns an implementation of the MsgServer interface
-// for the provided Keeper.
-func NewMsgServerImpl(keeper Keeper) types.MsgServer {
-	return &msgServer{
-		Keeper: keeper,
-	}
-}
-
-type msgServer struct {
-	Keeper
-}
+var _ types.MsgServer = Keeper{}
 
 func (k Keeper) SendTransferIntent(goCtx context.Context, msg *types.MsgSendTransferIntent) (*types.MsgSendTransferIntentResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)

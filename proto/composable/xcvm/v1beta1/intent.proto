@@ -11,9 +11,10 @@ message TransferIntent {
   string source_address = 1;
   string destination_address = 2;
   string client_id = 3;
-  int64 timeout_height = 4;
-  TransferTokens transfer_tokens = 5;
-  string bounty = 6 [
+  int64 starting_height = 4;
+  int64 timeout_height = 5;
+  TransferTokens transfer_tokens = 6;
+  string bounty = 7 [
     (gogoproto.customtype) = "github.com/cosmos/cosmos-sdk/types.Coin",
     (gogoproto.nullable) = false
   ];
