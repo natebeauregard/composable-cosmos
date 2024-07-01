@@ -137,7 +137,7 @@ type AppKeepers struct {
 	RouterKeeper             *routerkeeper.Keeper
 	RatelimitKeeper          ratelimitmodulekeeper.Keeper
 	AllianceKeeper           alliancemodulekeeper.Keeper
-	XCvmKeeper               xcvmkeeper.Keeper
+	XCVMKeeper               xcvmkeeper.Keeper
 }
 
 // InitNormalKeepers initializes all 'normal' keepers.
@@ -354,7 +354,7 @@ func (appKeepers *AppKeepers) InitNormalKeepers(
 		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
 	)
 
-	appKeepers.XCvmKeeper = xcvmkeeper.NewKeeper(
+	appKeepers.XCVMKeeper = xcvmkeeper.NewKeeper(
 		appCodec,
 		appKeepers.keys[xcvmtypes.StoreKey],
 		appKeepers.IBCKeeper.ClientKeeper,

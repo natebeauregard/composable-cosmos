@@ -32,15 +32,18 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 	intentId := k.getNextIntentId(ctx)
 	transferIntent := types.TransferIntent{
 		ClientId:           clientId,
-		SourceAddress:      msg.FromAddress,
+		SourceAddress:      msg.Sender,
 		DestinationAddress: msg.DestinationAddress,
+		StartingHeight:     ctx.BlockHeight(),
 		TimeoutHeight:      msg.TimeoutHeight,
 		TransferTokens:     msg.TransferTokens,
 		Bounty:             msg.Bounty,
 	}
-	k.AddTransferIntent(ctx, transferIntent, intentId)
+	if err := k.AddTransferIntent(ctx, transferIntent, intentId); err != nil {
+		return fmt.Errorf("add transfer intent: %v", err)
+	}
 
-	userAddress, err := sdk.AccAddressFromBech32(msg.FromAddress)
+	userAddress, err := sdk.AccAddressFromBech32(msg.Sender)
 	if err != nil {
 		return fmt.Errorf("acc address conversion: %v", err)
 	}
@@ -70,11 +73,8 @@ func (k Keeper) SendEthTransferIntent(ctx sdk.Context, msg *types.MsgSendTransfe
 func (k Keeper) getNextIntentId(ctx sdk.Context) uint64 {
 	kvStore := ctx.KVStore(k.storeKey)
 
-	intentIdBz := kvStore.Get(types.TransferIntentIdKey)
 	var intentId uint64
-	if intentIdBz == nil {
-		intentId = 0
-	} else {
+	if intentIdBz := kvStore.Get(types.TransferIntentIdKey); intentIdBz != nil {
 		intentId = binary.BigEndian.Uint64(intentIdBz)
 	}
 
@@ -90,13 +90,20 @@ func (k Keeper) SetNextIntentId(ctx sdk.Context, intentId uint64) {
 }
 
 // AddTransferIntent stores an intent object in the store
-func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.TransferIntent, intentId uint64) {
+func (k Keeper) AddTransferIntent(ctx sdk.Context, transferIntent types.TransferIntent, intentId uint64) error {
 	kvStore := ctx.KVStore(k.storeKey)
 
 	transferIntentKey := types.GetPendingTransferIntentKeyById(intentId)
-	transferIntentValue := k.cdc.MustMarshal(&transferIntent)
+	transferIntentValue, err := k.cdc.Marshal(&transferIntent)
+	if err != nil {
+		return fmt.Errorf("failed to marshal transfer intent: %v", err)
+	}
+	if transferIntentKey == nil || transferIntentValue == nil {
+		return types.ErrInvalidTransferIntent
+	}
 
 	kvStore.Set(transferIntentKey, transferIntentValue)
+	return nil
 }
 
 // GetTransferIntent retrieves a transfer intent from the store
@@ -127,8 +134,14 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 		return fmt.Errorf("get transfer intent: %v", err)
 	}
 
-	// verify that the transfer intent request is not timed out
 	currentBlockHeight := ctx.BlockHeight()
+
+	// verify that the transfer intent was not executed prior to the intent being submitted
+	if currentBlockHeight < transferIntent.StartingHeight {
+		return types.ErrProofSubmittedBeforeExecution
+	}
+
+	// verify that the transfer intent request is not timed out
 	if currentBlockHeight >= transferIntent.TimeoutHeight {
 		return types.ErrProofSubmittedAfterTimeout
 	}
@@ -166,7 +179,7 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	if len(msg.BeaconBlockHeaders) > 0 {
 		// Include the light client state as the last block header in the chain to verify
 		beaconBlockHeaders := append(msg.BeaconBlockHeaders, clientStateBeaconBlockHeader)
-		if err := verifyPreviousBeaconBlockHeaders(beaconBlockHeaders); err != nil {
+		if err := verifyBeaconBlockHeaders(beaconBlockHeaders); err != nil {
 			return fmt.Errorf("verify beacon block headers: %v", err)
 		}
 		intentBeaconBlockHeader = msg.BeaconBlockHeaders[0]
@@ -199,7 +212,7 @@ func (k Keeper) VerifyEthTransferIntentProof(ctx sdk.Context, msg *types.MsgVeri
 	}
 
 	// Get solver's account address
-	accAddress, err := sdk.AccAddressFromBech32(msg.Signer)
+	accAddress, err := sdk.AccAddressFromBech32(msg.Sender)
 	if err != nil {
 		return fmt.Errorf("acc address conversion: %v", err)
 	}
@@ -303,18 +316,22 @@ func verifyReceiptUniqueness(store store.KVStore, txReceiptHash []byte, blockHas
 	return nil
 }
 
-// verifyPreviousBeaconBlockHeaders verifies that the provided previous beacon block headers are valid and in the correct order
-func verifyPreviousBeaconBlockHeaders(beaconBlockHeaders []*types.BeaconBlockHeader) error {
+// verifyBeaconBlockHeaders verifies that the provided previous beacon block headers are valid and in the correct order
+func verifyBeaconBlockHeaders(beaconBlockHeaders []*types.BeaconBlockHeader) error {
+	if beaconBlockHeaders == nil || len(beaconBlockHeaders) == 0 {
+		return types.ErrInvalidBlockHeaders
+	}
+
 	intentBeaconBlockHeader := *beaconBlockHeaders[0]
 	headerHash, err := intentBeaconBlockHeader.Hash()
 	if err != nil {
 		return fmt.Errorf("hash intent beacon block header: %v", err)
 	}
 
-	var currentParentRoot [32]byte
+	var currentParentHash [32]byte
 	for _, header := range beaconBlockHeaders[1:] {
-		copy(currentParentRoot[:], header.GetParentRoot())
-		if currentParentRoot != headerHash {
+		copy(currentParentHash[:], header.GetParentRoot())
+		if currentParentHash != headerHash {
 			return types.ErrInvalidBlockHeaders
 		}
 		headerHash, err = header.Hash()
@@ -377,16 +394,10 @@ func getClientStateBeaconBlockHeader(clientState ibccore.ClientState) (*types.Be
 
 // verifyTransferEvent verifies that the ERC-20 transfer log emitted in the transaction receipt includes the correct destination address and amount specified in the transfer intent
 func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferIntent, solverPublicKey *ecdsa.PublicKey) error {
-	type LogTransfer struct {
-		From         common.Address
-		To           common.Address
-		Tokens       *big.Int
-		TokenAddress common.Address
-	}
 	transferEventSig := []byte("Transfer(address,address,uint256)")
 	transferEventSigHash := crypto.Keccak256Hash(transferEventSig)
 
-	var transferEvent LogTransfer
+	var transferEvent types.LogTransfer
 	for _, log := range txReceipt.Logs {
 		if log.Topics[0].Hex() == transferEventSigHash.Hex() {
 			transferEvent.From = common.HexToAddress(log.Topics[1].Hex())
@@ -397,7 +408,7 @@ func verifyTransferEvent(txReceipt gethtypes.Receipt, intent types.TransferInten
 		}
 	}
 
-	if transferEvent == (LogTransfer{}) {
+	if transferEvent == (types.LogTransfer{}) {
 		return types.ErrTransferEventNotFound
 	}
 	if transferEvent.TokenAddress != common.HexToAddress(intent.TransferTokens.Erc20Address) {

@@ -27,10 +27,10 @@ service Msg {
 
 // MsgSendTransferIntent represents a message to send a transfer intent.
 message MsgSendTransferIntent {
-    option (cosmos.msg.v1.signer) = "from_address";
+    option (cosmos.msg.v1.signer) = "sender";
 
     // The origin composable address of the transfer intent.
-    string from_address = 1;
+    string sender = 1;
     // The destination EVM chain address for the transfer intent.
     string destination_address = 2;
     // The IBC light client ID for the EVM chain to execute the transfer intent on.
@@ -52,10 +52,10 @@ message MsgSendTransferIntentResponse {}
 // MsgVerifyTransferIntentProof represents a message to send a proof to verify
 // the successful execution of a transfer intent.
 message MsgVerifyTransferIntentProof {
-    option (cosmos.msg.v1.signer) = "signer";
+    option (cosmos.msg.v1.signer) = "sender";
 
     // The signer address of the transfer intent proof to verify.
-    string signer = 1;
+    string sender = 1;
     // Unique id of the intent to verify the proof for
     uint64 intent_id = 2;
     // the transaction receipt containing the transfer intent execution.
@@ -70,7 +70,7 @@ message MsgVerifyTransferIntentProof {
     bytes receipt_proof = 7;
     // the body of the beacon block containing the transfer intent execution.
     bytes beacon_block_body = 8;
-    // all beacon block headers from the block where the transfer intent was executed up to block in the current light client state.
+    // all beacon block headers from the block where the transfer intent was executed up until the beacon block header in the current light client state.
     repeated BeaconBlockHeader beacon_block_headers = 9;
 }
 

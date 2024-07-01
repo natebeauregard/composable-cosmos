@@ -2,6 +2,7 @@ package types
 
 import (
 	errorsmod "cosmossdk.io/errors"
+	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,18 +17,18 @@ const (
 var _ sdk.Msg = &MsgSendTransferIntent{}
 
 // Type Implements Msg.
-func (MsgSendTransferIntent) Type() string { return TypeMsgSendTransferIntent }
+func (msg *MsgSendTransferIntent) Type() string { return TypeMsgSendTransferIntent }
 
 // GetSigners returns the expected signers for a MsgSendTransferIntent message.
 func (msg *MsgSendTransferIntent) GetSigners() []sdk.AccAddress {
-	addr, _ := sdk.AccAddressFromBech32(msg.FromAddress)
+	addr, _ := sdk.AccAddressFromBech32(msg.Sender)
 	return []sdk.AccAddress{addr}
 }
 
 // ValidateBasic does a sanity check on the provided data.
 func (msg *MsgSendTransferIntent) ValidateBasic() error {
 	// validate from address
-	if _, err := sdk.AccAddressFromBech32(msg.FromAddress); err != nil {
+	if _, err := sdk.AccAddressFromBech32(msg.Sender); err != nil {
 		return errorsmod.Wrap(err, "invalid from address")
 	}
 
@@ -37,9 +38,9 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 	}
 
 	// validate clientId
-	//if err := host.ClientIdentifierValidator(msg.ClientId); err != nil {
-	//	return err
-	//}
+	if err := host.ClientIdentifierValidator(msg.ClientId); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -47,18 +48,21 @@ func (msg *MsgSendTransferIntent) ValidateBasic() error {
 var _ sdk.Msg = &MsgVerifyTransferIntentProof{}
 
 // Type Implements Msg.
-func (MsgVerifyTransferIntentProof) Type() string { return TypeMsgVerifyTransferIntentProof }
+func (msg *MsgVerifyTransferIntentProof) Type() string { return TypeMsgVerifyTransferIntentProof }
 
 // GetSigners returns the expected signers for a MsgVerifyTransferIntentProof message.
 func (msg *MsgVerifyTransferIntentProof) GetSigners() []sdk.AccAddress {
-	addr, _ := sdk.AccAddressFromBech32(msg.Signer)
+	addr, err := sdk.AccAddressFromBech32(msg.Sender)
+	if err != nil {
+		panic(err)
+	}
 	return []sdk.AccAddress{addr}
 }
 
 // ValidateBasic does a sanity check on the provided data.
 func (msg *MsgVerifyTransferIntentProof) ValidateBasic() error {
 	// validate signer
-	if _, err := sdk.AccAddressFromBech32(msg.Signer); err != nil {
+	if _, err := sdk.AccAddressFromBech32(msg.Sender); err != nil {
 		return errorsmod.Wrap(err, "invalid signer address")
 	}
 
@@ -68,7 +72,7 @@ func (msg *MsgVerifyTransferIntentProof) ValidateBasic() error {
 var _ sdk.Msg = &MsgTriggerTransferIntentTimeout{}
 
 // Type Implements Msg.
-func (MsgTriggerTransferIntentTimeout) Type() string { return TypeMsgTriggerTransferIntentTimeout }
+func (msg *MsgTriggerTransferIntentTimeout) Type() string { return TypeMsgTriggerTransferIntentTimeout }
 
 // GetSigners returns the expected signers for a MsgVerifyTransferIntentProof message.
 func (msg *MsgTriggerTransferIntentTimeout) GetSigners() []sdk.AccAddress {

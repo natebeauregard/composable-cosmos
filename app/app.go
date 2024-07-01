@@ -299,7 +299,7 @@ func NewComposableApp(
 	transfermiddlewareModule := transfermiddleware.NewAppModule(&app.TransferMiddlewareKeeper)
 	txBoundaryModule := txboundary.NewAppModule(appCodec, app.TxBoundaryKeepper)
 	ratelimitModule := ratelimitmodule.NewAppModule(&app.RatelimitKeeper)
-	xcvmModule := xcvm.NewAppModule(appCodec, app.XCvmKeeper, app.AccountKeeper)
+	xcvmModule := xcvm.NewAppModule(appCodec, app.XCVMKeeper, app.AccountKeeper)
 	icqModule := icq.NewAppModule(app.ICQKeeper, app.GetSubspace(icqtypes.ModuleName))
 	icaModule := ica.NewAppModule(nil, &app.ICAHostKeeper) // Only ICA Host
 	// ****  Module Options **** //
